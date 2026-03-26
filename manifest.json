@@ -1,0 +1,15 @@
+{
+  "name": "Global Clean-up",
+  "short_name": "CleanPlanet",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#00ff00",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/825/825561.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
