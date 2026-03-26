@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Global Clean-up</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <style>
+        body, html { margin: 0; overflow: hidden; height: 100%; background: url('https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=1000') no-repeat center center; background-size: cover; }
+        canvas { position: absolute; top: 0; left: 0; touch-action: none; cursor: crosshair; }
+        #ui { position: absolute; bottom: 20px; width: 100%; text-align: center; font-family: sans-serif; pointer-events: none; }
+        button { pointer-events: auto; padding: 10px 20px; background: #00ff00; border: none; border-radius: 20px; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<canvas id="dirtCanvas"></canvas>
+
+<div id="ui">
+    <button onclick="shareLink()">POZVI PARŤÁKA (SDÍLET)</button>
+    <p style="color: white; text-shadow: 1px 1px 2px black;">Udržuj planetu čistou!</p>
+</div>
+
+<script>
+    const canvas = document.getElementById('dirtCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    // Nastavení velikosti plátna
+    function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        // Vyplníme špínou (černo-šedá s 90% krytím)
+        ctx.fillStyle = 'rgba(30, 30, 30, 0.95)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+    window.onresize = resize;
+    resize();
+
+    // Funkce pro "čištění" (gumování)
+    function clean(x, y) {
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.beginPath();
+        ctx.arc(x, y, 40, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // SEM PŘIJDE FIREBASE KÓD PRO ODESLÁNÍ (uděláme v dalším kroku)
+        console.log("Čistím na:", x, y);
+    }
+
+    // Ovládání dotykem
+    canvas.addEventListener('touchmove', (e) => {
+        const touch = e.touches[0];
+        clean(touch.clientX, touch.clientY);
+    });
+
+    // Funkce pro sdílení (řetězovka)
+    function shareLink() {
+        const roomID = Math.random().toString(36).substring(7);
+        const url = window.location.href + "?room=" + roomID;
+        
+        if (navigator.share) {
+            navigator.share({ title: 'Pomoz mi vyčistit planetu!', url: url });
+        } else {
+            alert("Zkopíruj tento link kamarádovi: " + url);
+        }
+    }
+</script>
+</body>
+</html>
