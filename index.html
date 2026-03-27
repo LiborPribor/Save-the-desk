@@ -2,23 +2,26 @@
 <html lang="cs">
 <head>
     <meta charset="UTF-8">
-    <title>NEON TRACE</title>
+    <title>NEON TRACE - MASTER</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #000; font-family: 'Courier New', monospace; color: #fff; user-select: none; webkit-user-select: none; }
-        canvas { display: block; touch-action: none; position: absolute; top: 0; left: 0; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #000; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #fff; user-select: none; -webkit-user-select: none; touch-action: none; }
+        canvas { display: block; position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
         
-        #ui { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between; padding: 20px; box-sizing: border-box; }
-        #header { text-align: center; opacity: 0.8; }
-        #score { font-size: 40px; font-weight: bold; text-shadow: 0 0 15px #fff; opacity: 0; transition: opacity 0.5s; }
-        #reference { position: absolute; top: 10px; right: 10px; width: 80px; height: 80px; border: 2px solid #00ffcc; border-radius: 10px; box-shadow: 0 0 10px #00ffcc; opacity: 0.8; display: flex; justify-content: center; align-items: center; }
-        #reference canvas { position: static; width: 60px; height: 60px; }
+        #ui { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between; padding: env(safe-area-inset-top) 20px env(safe-area-inset-bottom) 20px; box-sizing: border-box; }
+        #header { text-align: center; margin-top: 20px; }
+        #score { font-size: 42px; font-weight: 900; text-shadow: 0 0 20px #fff; opacity: 0; transition: opacity 0.3s; transform: scale(0.8); }
+        #score.show { opacity: 1; transform: scale(1); }
         
-        #footer { text-align: center; bottom: 30px; }
-        #instr { font-size: 18px; animation: pulse 1.5s infinite; }
-        @keyframes pulse { 0% { opacity: 0.3; } 50% { opacity: 1; } 100% { opacity: 0.3; } }
+        #reference-box { position: absolute; top: 30px; right: 20px; width: 90px; height: 90px; border: 2px solid #00ffcc; border-radius: 15px; background: rgba(0, 255, 204, 0.05); box-shadow: 0 0 15px rgba(0, 255, 204, 0.2); display: flex; justify-content: center; align-items: center; }
+        #refCanvas { width: 70px; height: 70px; }
+        
+        #footer { text-align: center; margin-bottom: 40px; }
+        #instr { font-size: 16px; letter-spacing: 2px; color: #00ffcc; text-shadow: 0 0 10px #00ffcc; animation: pulse 1.5s infinite; }
+        
+        @keyframes pulse { 0% { opacity: 0.4; transform: scale(0.98); } 50% { opacity: 1; transform: scale(1); } 100% { opacity: 0.4; transform: scale(0.98); } }
     </style>
 </head>
 <body>
@@ -28,8 +31,8 @@
 <div id="ui">
     <div id="header">
         <div id="score">0%</div>
-        <div id="reference">
-            <canvas id="refCanvas" width="60" height="60"></canvas>
+        <div id="reference-box">
+            <canvas id="refCanvas" width="140" height="140"></canvas>
         </div>
     </div>
     <div id="footer">
@@ -45,206 +48,177 @@
     const scoreEl = document.getElementById('score');
     const instrEl = document.getElementById('instr');
     
-    // Proměnné
-    let playerTrace = []; // Seznam bodů tvého prstu
+    let playerTrace = [];
     let isDrawing = false;
-    let targetShapePoints = []; // Definované body reference
-    let targetColor = '#00ffcc'; // Neonově tyrkysová
+    let targetShapePoints = [];
+    const targetColor = '#00ffcc';
 
-    // Inicializace plátna
     function resize() {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
-        // Vycentrování reference na hlavním plátně nahoře
+        clearMainCanvas();
         drawReferenceToMain();
     }
     window.addEventListener('resize', resize);
-    resize();
 
-    // --- DEFINICE SYMBOLU: ČTVEREC (Level 1) ---
+    // Definice čtverce (body od 0 do 100)
     function defineTargetShape() {
-        // Body čtverce (relativní k 0-100 pro snadné škálování)
         targetShapePoints = [
-            { x: 10, y: 10 }, { x: 90, y: 10 },
-            { x: 90, y: 90 }, { x: 10, y: 90 },
-            { x: 10, y: 10 } // Uzavření
+            { x: 20, y: 20 }, { x: 80, y: 20 },
+            { x: 80, y: 80 }, { x: 20, y: 80 },
+            { x: 20, y: 20 }
         ];
     }
-    defineTargetShape();
 
-    // Vykreslení reference do malého okénka (UI)
     function drawReferenceToUI() {
         refCtx.clearRect(0, 0, refCanvas.width, refCanvas.height);
         refCtx.strokeStyle = targetColor;
-        refCtx.lineWidth = 2;
+        refCtx.lineWidth = 6;
         refCtx.lineCap = 'round';
         refCtx.lineJoin = 'round';
-        refCtx.shadowBlur = 5;
+        refCtx.shadowBlur = 10;
         refCtx.shadowColor = targetColor;
         
+        const s = 1.4; // Scale pro 140px canvas
         refCtx.beginPath();
-        refCtx.moveTo(targetShapePoints[0].x * 0.6, targetShapePoints[0].y * 0.6); // Měřítko pro 60x60
+        refCtx.moveTo(targetShapePoints[0].x * s, targetShapePoints[0].y * s);
         for (let i = 1; i < targetShapePoints.length; i++) {
-            refCtx.lineTo(targetShapePoints[i].x * 0.6, targetShapePoints[i].y * 0.6);
+            refCtx.lineTo(targetShapePoints[i].x * s, targetShapePoints[i].y * s);
         }
         refCtx.stroke();
-        refCtx.shadowBlur = 0;
     }
-    drawReferenceToUI();
 
-    // Vykreslení reference na hlavní plátno (pro porovnání, poloprůhledné)
     function drawReferenceToMain() {
-        // Měřítko pro hlavní plátno
-        const scale = 250; 
-        const offsetX = (canvas.width / 2) - scale/2;
-        const offsetY = (canvas.height / 2) - scale/2;
+        const size = Math.min(canvas.width, canvas.height) * 0.6;
+        const offsetX = (canvas.width - size) / 2;
+        const offsetY = (canvas.height - size) / 2;
         
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)'; // VELMI JEMNÉ
-        ctx.lineWidth = 5;
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+        ctx.lineWidth = 10;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
         
         ctx.beginPath();
-        // Přepočet relativních bodů na absolutní souřadnice plátna
-        ctx.moveTo(targetShapePoints[0].x * (scale/100) + offsetX, targetShapePoints[0].y * (scale/100) + offsetY);
+        ctx.moveTo(targetShapePoints[0].x * (size/100) + offsetX, targetShapePoints[0].y * (size/100) + offsetY);
         for (let i = 1; i < targetShapePoints.length; i++) {
-            ctx.lineTo(targetShapePoints[i].x * (scale/100) + offsetX, targetShapePoints[i].y * (scale/100) + offsetY);
+            ctx.lineTo(targetShapePoints[i].x * (size/100) + offsetX, targetShapePoints[i].y * (size/100) + offsetY);
         }
         ctx.stroke();
     }
 
-    // --- KRESLENÍ (Logika prstu) ---
-    canvas.addEventListener('touchstart', (e) => {
+    // --- OVLÁDÁNÍ (FIXED) ---
+    function handleStart(e) {
+        e.preventDefault();
         isDrawing = true;
-        playerTrace = []; // Vyčistit minulý pokus
-        const t = e.touches[0];
-        addPoint(t.clientX, t.clientY);
+        playerTrace = [];
+        const t = e.touches ? e.touches[0] : e;
+        const rect = canvas.getBoundingClientRect();
+        addPoint(t.clientX - rect.left, t.clientY - rect.top);
+        
         instrEl.style.display = 'none';
-        scoreEl.style.opacity = '0';
+        scoreEl.classList.remove('show');
         clearMainCanvas();
-        drawReferenceToMain(); // Znovu vykreslit jemnou referenci
-    });
+        drawReferenceToMain();
+    }
 
-    canvas.addEventListener('touchmove', (e) => {
+    function handleMove(e) {
         if (!isDrawing) return;
-        const t = e.touches[0];
-        addPoint(t.clientX, t.clientY);
+        e.preventDefault();
+        const t = e.touches ? e.touches[0] : e;
+        const rect = canvas.getBoundingClientRect();
+        addPoint(t.clientX - rect.left, t.clientY - rect.top);
         drawPlayerTrace();
-        e.preventDefault(); 
-    });
+    }
 
-    canvas.addEventListener('touchend', (e) => {
+    function handleEnd(e) {
         if (!isDrawing) return;
         isDrawing = false;
         evaluateTrace();
-    });
+    }
+
+    canvas.addEventListener('touchstart', handleStart, { passive: false });
+    canvas.addEventListener('touchmove', handleMove, { passive: false });
+    canvas.addEventListener('touchend', handleEnd, { passive: false });
+    // Podpora pro myš (testování na PC)
+    canvas.addEventListener('mousedown', handleStart);
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleEnd);
 
     function addPoint(x, y) {
         playerTrace.push({ x: x, y: y });
     }
 
-    // Vyčistit plátno
     function clearMainCanvas() {
         ctx.fillStyle = '#000';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
 
-    // Vykreslení tvé stopy (Neonový laser)
     function drawPlayerTrace() {
-        // Částečné překrytí (pro efekt mizení)
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.02)';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        
         if (playerTrace.length < 2) return;
-        
         ctx.shadowBlur = 15;
         ctx.shadowColor = targetColor;
         ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 4;
+        ctx.lineWidth = 5;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
         
         ctx.beginPath();
-        ctx.moveTo(playerTrace[0].x, playerTrace[0].y);
-        for (let i = 1; i < playerTrace.length; i++) {
-            ctx.lineTo(playerTrace[i].x, playerTrace[i].y);
-        }
+        ctx.moveTo(playerTrace[playerTrace.length - 2].x, playerTrace[playerTrace.length - 2].y);
+        ctx.lineTo(playerTrace[playerTrace.length - 1].x, playerTrace[playerTrace.length - 1].y);
         ctx.stroke();
         ctx.shadowBlur = 0;
     }
 
-    // --- VYHODNOCENÍ (The Logic) ---
     function evaluateTrace() {
-        if (playerTrace.length < 5) return; // Moc krátká stopa
+        if (playerTrace.length < 10) return;
         
-        // Měřítko pro hlavní plátno (stejné jako u drawReferenceToMain)
-        const scale = 250; 
-        const offsetX = (canvas.width / 2) - scale/2;
-        const offsetY = (canvas.height / 2) - scale/2;
+        const size = Math.min(canvas.width, canvas.height) * 0.6;
+        const offsetX = (canvas.width - size) / 2;
+        const offsetY = (canvas.height - size) / 2;
 
-        // Převedeme referenční body na absolutní souřadnice plátna
         let targetAbsPoints = targetShapePoints.map(p => ({
-            x: p.x * (scale/100) + offsetX,
-            y: p.y * (scale/100) + offsetY
+            x: p.x * (size/100) + offsetX,
+            y: p.y * (size/100) + offsetY
         }));
 
-        // Zjednodušené porovnání (Průměrná vzdálenost bodů)
         let totalDist = 0;
-        let pointsCompared = 0;
-
-        // Pro každý bod tvé stopy najdeme nejbližší bod na referenci
         for (let pTrace of playerTrace) {
             let minDist = Infinity;
-            // Porovnáme s body reference (pro demo porovnáme jen s definičními body, pro přesnost by se musely body interpolovat)
-            for (let pTarget of targetAbsPoints) {
-                const d = Math.hypot(pTrace.x - pTarget.x, pTrace.y - pTarget.y);
+            // Hrubé porovnání s body úseček reference
+            for (let i = 0; i < targetAbsPoints.length - 1; i++) {
+                const d = distToSegment(pTrace, targetAbsPoints[i], targetAbsPoints[i+1]);
                 if (d < minDist) minDist = d;
             }
-            // Tolerance: Pokud je dál než 50px, ignorujeme (ujel moc daleko)
-            if (minDist < 50) {
-                totalDist += minDist;
-                pointsCompared++;
-            } else {
-                totalDist += 100; // Penalizace za ujetí
-                pointsCompared++;
-            }
+            totalDist += minDist;
         }
 
-        const avgDist = totalDist / pointsCompared;
-        // Převedení odchylky na procenta (0px odchylka = 100%, 50px odchylka = 0%)
-        let scorePercent = Math.max(0, 100 - (avgDist * 2));
+        const avgDist = totalDist / playerTrace.length;
+        let scorePercent = Math.max(0, 100 - (avgDist * 1.5));
+        
+        // Bonus za dokončení celého tvaru (jednoduchá kontrola délky)
+        if (playerTrace.length < 30) scorePercent *= 0.5;
 
-        // UI Aktualizace
-        scoreEl.innerText = scorePercent.toFixed(0) + '% PŘESNOST';
-        scoreEl.style.opacity = '1';
-        instrEl.innerText = 'PŘILOŽ PRST PRO NOVÝ POKUS';
+        scoreEl.innerText = scorePercent.toFixed(0) + '%';
+        scoreEl.style.color = scorePercent > 70 ? '#00ffcc' : '#ff0055';
+        scoreEl.classList.add('show');
+        instrEl.innerText = 'Zkus to znovu!';
         instrEl.style.display = 'block';
 
-        // Vizuální zpětná vazba (Zelená pro výhru, Červená pro prohru)
-        if (scorePercent > 80) {
-            flashCanvas('#00ffcc'); // Tyrkysová (Záře)
-            if (navigator.vibrate) navigator.vibrate([50, 50, 50]); 
-        } else {
-            flashCanvas('#ff0055'); // Červená (Chyba)
-            if (navigator.vibrate) navigator.vibrate(200); 
-        }
+        if (navigator.vibrate) navigator.vibrate(scorePercent > 70 ? 50 : 200);
     }
 
-    // Krátké bliknutí záře při vyhodnocení
-    function flashCanvas(color) {
-        ctx.shadowBlur = 50;
-        ctx.shadowColor = color;
-        ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 15;
-        ctx.beginPath();
-        if (playerTrace.length > 2) {
-            ctx.moveTo(playerTrace[0].x, playerTrace[0].y);
-            for (let i = 1; i < playerTrace.length; i++) ctx.lineTo(playerTrace[i].x, playerTrace[i].y);
-        }
-        ctx.stroke();
-        ctx.shadowBlur = 0;
+    // Pomocná matika pro vzdálenost bodu od úsečky
+    function distToSegment(p, v, w) {
+        const l2 = Math.pow(v.x - w.x, 2) + Math.pow(v.y - w.y, 2);
+        if (l2 == 0) return Math.hypot(p.x - v.x, p.y - v.y);
+        let t = ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / l2;
+        t = Math.max(0, Math.min(1, t));
+        return Math.hypot(p.x - (v.x + t * (w.x - v.x)), p.y - (v.y + t * (w.y - v.y)));
     }
 
+    defineTargetShape();
+    resize();
+    drawReferenceToUI();
 </script>
 </body>
 </html>
