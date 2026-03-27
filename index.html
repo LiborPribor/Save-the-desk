@@ -2,26 +2,20 @@
 <html lang="cs">
 <head>
     <meta charset="UTF-8">
-    <title>NEON ZEN - YǑNG</title>
+    <title>NEON EYE - DRAW BY SIGHT</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #000; font-family: 'Segoe UI', sans-serif; color: #fff; user-select: none; -webkit-user-select: none; touch-action: none; }
-        canvas { display: block; position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
-        
-        #ui { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between; padding: env(safe-area-inset-top) 20px env(safe-area-inset-bottom) 20px; box-sizing: border-box; }
-        #header { text-align: center; margin-top: 20px; }
-        #score { font-size: 50px; font-weight: 900; text-shadow: 0 0 20px #fff; opacity: 0; transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); transform: translateY(-20px); }
-        #score.show { opacity: 1; transform: translateY(0); }
-        
-        #reference-box { position: absolute; top: 30px; right: 20px; width: 100px; height: 100px; border: 1px solid rgba(0, 255, 204, 0.3); border-radius: 12px; background: rgba(0, 255, 204, 0.05); backdrop-filter: blur(5px); display: flex; justify-content: center; align-items: center; }
-        #refCanvas { width: 80px; height: 80px; }
-        
-        #footer { text-align: center; margin-bottom: 50px; }
-        #instr { font-size: 14px; letter-spacing: 3px; color: #00ffcc; text-shadow: 0 0 10px #00ffcc; animation: pulse 2s infinite; font-weight: 300; }
-        
-        @keyframes pulse { 0% { opacity: 0.3; } 50% { opacity: 1; } 100% { opacity: 0.3; } }
+        canvas { display: block; position: absolute; top: 0; left: 0; }
+        #ui { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between; padding: 40px 20px; box-sizing: border-box; }
+        #score { font-size: 60px; font-weight: 900; text-align: center; text-shadow: 0 0 20px #fff; opacity: 0; transition: 0.3s; }
+        #score.show { opacity: 1; }
+        #reference-box { position: absolute; top: 20px; right: 20px; width: 120px; height: 120px; border: 2px solid #00ffcc; border-radius: 15px; background: #051a1a; display: flex; justify-content: center; align-items: center; box-shadow: 0 0 20px rgba(0,255,204,0.4); }
+        #refCanvas { width: 100px; height: 100px; }
+        #instr { text-align: center; font-size: 14px; letter-spacing: 2px; color: #00ffcc; text-shadow: 0 0 10px #00ffcc; animation: pulse 2s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }
     </style>
 </head>
 <body>
@@ -29,15 +23,11 @@
 <canvas id="gameCanvas"></canvas>
 
 <div id="ui">
-    <div id="header">
-        <div id="score">0%</div>
-        <div id="reference-box">
-            <canvas id="refCanvas" width="160" height="160"></canvas>
-        </div>
+    <div id="score">0%</div>
+    <div id="reference-box">
+        <canvas id="refCanvas" width="200" height="200"></canvas>
     </div>
-    <div id="footer">
-        <div id="instr">OBKRESLI ZNAK JEDNÍM TAHEM</div>
-    </div>
+    <div id="instr">NAKRESLI SYMBOL OD OKA (JEDNÍM TAHEM)</div>
 </div>
 
 <script>
@@ -46,192 +36,108 @@
     const refCanvas = document.getElementById('refCanvas');
     const refCtx = refCanvas.getContext('2d');
     const scoreEl = document.getElementById('score');
-    const instrEl = document.getElementById('instr');
-    
+
     let playerTrace = [];
     let isDrawing = false;
-    let targetShapePoints = [];
-    const targetColor = '#00ffcc';
+    let targetShape = [];
 
     function resize() {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
-        clearMainCanvas();
-        drawReferenceToMain();
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
     window.addEventListener('resize', resize);
 
-    // DEFINICE ZNAKU: "YǑNG" (Věčnost)
-    function defineTargetShape() {
-        targetShapePoints = [
-            { x: 50, y: 15 }, { x: 50, y: 25 }, // Tečka nahoře
-            { x: 20, y: 35 }, { x: 80, y: 35 }, // Horní břevno
-            { x: 50, y: 35 }, { x: 50, y: 85 }, { x: 40, y: 75 }, // Svislá s háčkem
-            { x: 50, y: 55 }, { x: 25, y: 55 }, { x: 20, y: 70 }, // Levá vlnka
-            { x: 50, y: 55 }, { x: 75, y: 65 }, { x: 85, y: 85 }  // Pravá vlnka
+    // Definice znaku (Normalizované body 0-100)
+    function initTarget() {
+        targetShape = [
+            {x:50, y:15}, {x:50, y:25}, {x:20, y:35}, {x:80, y:35},
+            {x:50, y:35}, {x:50, y:85}, {x:40, y:75}, {x:50, y:55},
+            {x:25, y:55}, {x:20, y:70}, {x:50, y:55}, {x:75, y:65}, {x:85, y:85}
         ];
+        drawRef();
     }
 
-    function drawReferenceToUI() {
-        refCtx.clearRect(0, 0, refCanvas.width, refCanvas.height);
-        refCtx.strokeStyle = targetColor;
-        refCtx.lineWidth = 8;
-        refCtx.lineCap = 'round';
-        refCtx.lineJoin = 'round';
-        refCtx.shadowBlur = 15;
-        refCtx.shadowColor = targetColor;
-        
-        const s = 1.6; 
+    function drawRef() {
+        refCtx.clearRect(0,0,200,200);
+        refCtx.strokeStyle = '#00ffcc';
+        refCtx.lineWidth = 10;
+        refCtx.lineCap = refCtx.lineJoin = 'round';
+        refCtx.shadowBlur = 15; refCtx.shadowColor = '#00ffcc';
         refCtx.beginPath();
-        refCtx.moveTo(targetShapePoints[0].x * s, targetShapePoints[0].y * s);
-        for (let i = 1; i < targetShapePoints.length; i++) {
-            // Detekce "skoku" (pokud jsou body příliš blízko u sebe v definici, nekresli čáru)
-            // Zde pro jednoduchost kreslíme vše, v neonu to vypadá dobře jako jeden tah
-            refCtx.lineTo(targetShapePoints[i].x * s, targetShapePoints[i].y * s);
-        }
+        refCtx.moveTo(targetShape[0].x*2, targetShape[0].y*2);
+        targetShape.forEach(p => refCtx.lineTo(p.x*2, p.y*2));
         refCtx.stroke();
     }
 
-    function drawReferenceToMain() {
-        const size = Math.min(canvas.width, canvas.height) * 0.7;
-        const offsetX = (canvas.width - size) / 2;
-        const offsetY = (canvas.height - size) / 2;
-        
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
-        ctx.lineWidth = 15;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-        
-        ctx.beginPath();
-        ctx.moveTo(targetShapePoints[0].x * (size/100) + offsetX, targetShapePoints[0].y * (size/100) + offsetY);
-        for (let i = 1; i < targetShapePoints.length; i++) {
-            ctx.lineTo(targetShapePoints[i].x * (size/100) + offsetX, targetShapePoints[i].y * (size/100) + offsetY);
-        }
-        ctx.stroke();
+    // Funkce pro normalizaci (převod jakéhokoli kreslení na čtverec 0-100)
+    function normalize(points) {
+        let minX = Math.min(...points.map(p => p.x)), maxX = Math.max(...points.map(p => p.x));
+        let minY = Math.min(...points.map(p => p.y)), maxY = Math.max(...points.map(p => p.y));
+        let width = maxX - minX, height = maxY - minY;
+        let size = Math.max(width, height);
+        return points.map(p => ({
+            x: ((p.x - minX) / size) * 80 + 10, // Roztáhnout na 80% s 10% okrajem
+            y: ((p.y - minY) / size) * 80 + 10
+        }));
     }
 
     function handleStart(e) {
         e.preventDefault();
-        isDrawing = true;
-        playerTrace = [];
         const t = e.touches ? e.touches[0] : e;
-        const rect = canvas.getBoundingClientRect();
-        addPoint(t.clientX - rect.left, t.clientY - rect.top);
-        
-        instrEl.style.display = 'none';
+        isDrawing = true;
+        playerTrace = [{x: t.clientX, y: t.clientY}];
         scoreEl.classList.remove('show');
-        clearMainCanvas();
-        drawReferenceToMain();
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
 
     function handleMove(e) {
         if (!isDrawing) return;
         e.preventDefault();
         const t = e.touches ? e.touches[0] : e;
-        const rect = canvas.getBoundingClientRect();
-        addPoint(t.clientX - rect.left, t.clientY - rect.top);
-        drawPlayerTrace();
+        const newPoint = {x: t.clientX, y: t.clientY};
+        
+        ctx.shadowBlur = 15; ctx.shadowColor = '#00ffcc';
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(playerTrace[playerTrace.length-1].x, playerTrace[playerTrace.length-1].y);
+        ctx.lineTo(newPoint.x, newPoint.y);
+        ctx.stroke();
+        
+        playerTrace.push(newPoint);
     }
 
     function handleEnd() {
-        if (!isDrawing) return;
+        if (!isDrawing || playerTrace.length < 10) { isDrawing = false; return; }
         isDrawing = false;
-        evaluateTrace();
-    }
-
-    canvas.addEventListener('touchstart', handleStart, { passive: false });
-    canvas.addEventListener('touchmove', handleMove, { passive: false });
-    canvas.addEventListener('touchend', handleEnd, { passive: false });
-
-    function addPoint(x, y) {
-        playerTrace.push({ x: x, y: y });
-    }
-
-    function clearMainCanvas() {
-        ctx.fillStyle = '#000';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-    }
-
-    function drawPlayerTrace() {
-        if (playerTrace.length < 2) return;
-        ctx.shadowBlur = 20;
-        ctx.shadowColor = targetColor;
-        ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 6;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
         
-        ctx.beginPath();
-        ctx.moveTo(playerTrace[playerTrace.length - 2].x, playerTrace[playerTrace.length - 2].y);
-        ctx.lineTo(playerTrace[playerTrace.length - 1].x, playerTrace[playerTrace.length - 1].y);
-        ctx.stroke();
-        ctx.shadowBlur = 0;
-    }
-
-    function evaluateTrace() {
-        if (playerTrace.length < 15) return;
+        // Magie: Normalizujeme hráčovu stopu, aby nezáleželo na pozici ani velikosti
+        const normPlayer = normalize(playerTrace);
         
-        const size = Math.min(canvas.width, canvas.height) * 0.7;
-        const offsetX = (canvas.width - size) / 2;
-        const offsetY = (canvas.height - size) / 2;
-
-        let targetAbsPoints = targetShapePoints.map(p => ({
-            x: p.x * (size/100) + offsetX,
-            y: p.y * (size/100) + offsetY
-        }));
-
-        let totalError = 0;
-        for (let pTrace of playerTrace) {
-            let minDist = Infinity;
-            for (let i = 0; i < targetAbsPoints.length - 1; i++) {
-                const d = distToSegment(pTrace, targetAbsPoints[i], targetAbsPoints[i+1]);
-                if (d < minDist) minDist = d;
-            }
-            totalError += minDist;
+        // Porovnání (Dynamic Time Warping zjednodušený)
+        let diff = 0;
+        let samples = 30; // Porovnáme 30 bodů podél trasy
+        for(let i=0; i<samples; i++) {
+            let pIdx = Math.floor((i/(samples-1)) * (normPlayer.length-1));
+            let tIdx = Math.floor((i/(samples-1)) * (targetShape.length-1));
+            let d = Math.hypot(normPlayer[pIdx].x - targetShape[tIdx].x, normPlayer[pIdx].y - targetShape[tIdx].y);
+            diff += d;
         }
-
-        const avgError = totalError / playerTrace.length;
-        // Přísnější hodnocení pro složitý znak
-        let scorePercent = Math.max(0, 100 - (avgError * 2.2));
         
-        // Penalizace za neúplnost (krátký tah)
-        if (playerTrace.length < 50) scorePercent *= (playerTrace.length / 50);
-
-        scoreEl.innerText = scorePercent.toFixed(0) + '%';
-        scoreEl.style.color = scorePercent > 80 ? '#00ffcc' : (scorePercent > 50 ? '#ffcc00' : '#ff0055');
+        let score = Math.max(0, 100 - (diff / samples) * 2.5);
+        scoreEl.innerText = score.toFixed(0) + "%";
+        scoreEl.style.color = score > 75 ? '#00ffcc' : '#ff0055';
         scoreEl.classList.add('show');
-        instrEl.innerText = 'ZKUS TO ZNOVU A PŘESNĚJI';
-        instrEl.style.display = 'block';
-
-        if (navigator.vibrate) navigator.vibrate(scorePercent > 80 ? [50, 30, 50] : 150);
         
-        // Efektní finální vykreslení
-        flashTrace(scorePercent > 80 ? targetColor : '#ff0055');
+        if (navigator.vibrate) navigator.vibrate(score > 75 ? 50 : 200);
     }
 
-    function distToSegment(p, v, w) {
-        const l2 = Math.pow(v.x - w.x, 2) + Math.pow(v.y - w.y, 2);
-        if (l2 == 0) return Math.hypot(p.x - v.x, p.y - v.y);
-        let t = ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / l2;
-        t = Math.max(0, Math.min(1, t));
-        return Math.hypot(p.x - (v.x + t * (w.x - v.x)), p.y - (v.y + t * (w.y - v.y)));
-    }
-
-    function flashTrace(color) {
-        ctx.shadowBlur = 40;
-        ctx.shadowColor = color;
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 8;
-        ctx.beginPath();
-        ctx.moveTo(playerTrace[0].x, playerTrace[0].y);
-        for (let i = 1; i < playerTrace.length; i++) ctx.lineTo(playerTrace[i].x, playerTrace[i].y);
-        ctx.stroke();
-        ctx.shadowBlur = 0;
-    }
-
-    defineTargetShape();
-    resize();
-    drawReferenceToUI();
+    canvas.addEventListener('touchstart', handleStart, {passive:false});
+    canvas.addEventListener('touchmove', handleMove, {passive:false});
+    canvas.addEventListener('touchend', handleEnd);
+    resize(); initTarget();
 </script>
 </body>
 </html>
