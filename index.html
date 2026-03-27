@@ -143,4 +143,59 @@
 
     function updateUI() {
         if(localHistory.length > 0) {
-            document.getElementById('max-score').innerText
+            document.getElementById('max-score').innerText = Math.max(...localHistory) + "%";
+            progressChart.data.labels = localHistory.map((_, i) => i + 1);
+            progressChart.data.datasets[0].data = localHistory;
+            progressChart.update();
+        }
+    }
+
+    // --- KRESLENÍ ---
+    const drawRef = () => {
+        const rc = document.getElementById('refCanvas');
+        const rCtx = rc.getContext('2d');
+        rCtx.clearRect(0,0,200,200);
+        rCtx.strokeStyle = '#ff00ff'; rCtx.lineWidth = 12; rCtx.lineCap = rCtx.lineJoin = 'round';
+        rCtx.shadowBlur = 15; rCtx.shadowColor = '#ff00ff';
+        rCtx.beginPath();
+        rCtx.moveTo(targetShape[0].x*2, targetShape[0].y*2);
+        targetShape.forEach(p => rCtx.lineTo(p.x*2, p.y*2));
+        rCtx.stroke();
+    };
+
+    function start(e) {
+        e.preventDefault(); isDrawing = true;
+        const t = e.touches ? e.touches[0] : e;
+        playerTrace = [{x: t.clientX, y: t.clientY}];
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        scoreDisplay.classList.remove('show');
+    }
+
+    function move(e) {
+        if (!isDrawing) return;
+        const t = e.touches ? e.touches[0] : e;
+        const newPoint = {x: t.clientX, y: t.clientY};
+        ctx.shadowBlur = 15; ctx.shadowColor = '#ff00ff';
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 5; ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(playerTrace[playerTrace.length-1].x, playerTrace[playerTrace.length-1].y);
+        ctx.lineTo(newPoint.x, newPoint.y);
+        ctx.stroke();
+        playerTrace.push(newPoint);
+    }
+
+    function end() { if (isDrawing) { isDrawing = false; evaluate(); } }
+
+    canvas.addEventListener('touchstart', start, {passive:false});
+    canvas.addEventListener('touchmove', move, {passive:false});
+    canvas.addEventListener('touchend', end);
+    canvas.addEventListener('mousedown', start);
+    window.addEventListener('mousemove', (e) => { if(isDrawing) move(e); });
+    window.addEventListener('mouseup', end);
+
+    window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; drawRef(); });
+    canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+    drawRef(); updateUI();
+</script>
+</body>
+</html>
