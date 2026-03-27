@@ -2,7 +2,7 @@
 <html lang="cs">
 <head>
     <meta charset="UTF-8">
-    <title>NEON EYE - DRAW BY SIGHT</title>
+    <title>NEON KNOT - FLOW STATE</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -10,12 +10,12 @@
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #000; font-family: 'Segoe UI', sans-serif; color: #fff; user-select: none; -webkit-user-select: none; touch-action: none; }
         canvas { display: block; position: absolute; top: 0; left: 0; }
         #ui { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between; padding: 40px 20px; box-sizing: border-box; }
-        #score { font-size: 60px; font-weight: 900; text-align: center; text-shadow: 0 0 20px #fff; opacity: 0; transition: 0.3s; }
-        #score.show { opacity: 1; }
-        #reference-box { position: absolute; top: 20px; right: 20px; width: 120px; height: 120px; border: 2px solid #00ffcc; border-radius: 15px; background: #051a1a; display: flex; justify-content: center; align-items: center; box-shadow: 0 0 20px rgba(0,255,204,0.4); }
+        #score { font-size: 70px; font-weight: 900; text-align: center; text-shadow: 0 0 30px #fff; opacity: 0; transition: 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        #score.show { opacity: 1; transform: scale(1.1); }
+        #reference-box { position: absolute; top: 25px; right: 25px; width: 130px; height: 130px; border: 2px solid #ff00ff; border-radius: 20px; background: rgba(255, 0, 255, 0.05); display: flex; justify-content: center; align-items: center; box-shadow: 0 0 20px rgba(255,0,255,0.3); backdrop-filter: blur(5px); }
         #refCanvas { width: 100px; height: 100px; }
-        #instr { text-align: center; font-size: 14px; letter-spacing: 2px; color: #00ffcc; text-shadow: 0 0 10px #00ffcc; animation: pulse 2s infinite; }
-        @keyframes pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }
+        #instr { text-align: center; font-size: 12px; letter-spacing: 4px; color: #ff00ff; text-shadow: 0 0 10px #ff00ff; animation: pulse 2.5s infinite; font-weight: bold; }
+        @keyframes pulse { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
     </style>
 </head>
 <body>
@@ -27,7 +27,7 @@
     <div id="reference-box">
         <canvas id="refCanvas" width="200" height="200"></canvas>
     </div>
-    <div id="instr">NAKRESLI SYMBOL OD OKA (JEDNÍM TAHEM)</div>
+    <div id="instr">NAKRESLI SYMBOL OD OKA</div>
 </div>
 
 <script>
@@ -40,6 +40,7 @@
     let playerTrace = [];
     let isDrawing = false;
     let targetShape = [];
+    const mainNeonColor = '#ff00ff'; // Magentový neon
 
     function resize() {
         canvas.width = window.innerWidth;
@@ -49,36 +50,46 @@
     }
     window.addEventListener('resize', resize);
 
-    // Definice znaku (Normalizované body 0-100)
+    // DEFINICE: "NEONOVÝ UZEL" - Plynulá smyčka jedním tahem
     function initTarget() {
         targetShape = [
-            {x:50, y:15}, {x:50, y:25}, {x:20, y:35}, {x:80, y:35},
-            {x:50, y:35}, {x:50, y:85}, {x:40, y:75}, {x:50, y:55},
-            {x:25, y:55}, {x:20, y:70}, {x:50, y:55}, {x:75, y:65}, {x:85, y:85}
+            {x: 50, y: 10},  // Horní vrchol
+            {x: 80, y: 40},  // Pravá smyčka ven
+            {x: 50, y: 50},  // Střed
+            {x: 20, y: 60},  // Levá smyčka dolů
+            {x: 50, y: 90},  // Spodní vrchol
+            {x: 80, y: 60},  // Pravá smyčka dolů
+            {x: 50, y: 50},  // Střed (návrat)
+            {x: 20, y: 40},  // Levá smyčka nahoru
+            {x: 50, y: 10}   // Uzavření nahoře
         ];
         drawRef();
     }
 
     function drawRef() {
         refCtx.clearRect(0,0,200,200);
-        refCtx.strokeStyle = '#00ffcc';
-        refCtx.lineWidth = 10;
+        refCtx.strokeStyle = mainNeonColor;
+        refCtx.lineWidth = 12;
         refCtx.lineCap = refCtx.lineJoin = 'round';
-        refCtx.shadowBlur = 15; refCtx.shadowColor = '#00ffcc';
+        refCtx.shadowBlur = 20; refCtx.shadowColor = mainNeonColor;
+        
         refCtx.beginPath();
         refCtx.moveTo(targetShape[0].x*2, targetShape[0].y*2);
-        targetShape.forEach(p => refCtx.lineTo(p.x*2, p.y*2));
+        // Použití quadraticCurve pro hladší vzhled v náhledu
+        for(let i = 1; i < targetShape.length; i++) {
+            refCtx.lineTo(targetShape[i].x*2, targetShape[i].y*2);
+        }
         refCtx.stroke();
     }
 
-    // Funkce pro normalizaci (převod jakéhokoli kreslení na čtverec 0-100)
     function normalize(points) {
         let minX = Math.min(...points.map(p => p.x)), maxX = Math.max(...points.map(p => p.x));
         let minY = Math.min(...points.map(p => p.y)), maxY = Math.max(...points.map(p => p.y));
         let width = maxX - minX, height = maxY - minY;
         let size = Math.max(width, height);
+        if(size === 0) return points;
         return points.map(p => ({
-            x: ((p.x - minX) / size) * 80 + 10, // Roztáhnout na 80% s 10% okrajem
+            x: ((p.x - minX) / size) * 80 + 10,
             y: ((p.y - minY) / size) * 80 + 10
         }));
     }
@@ -99,8 +110,9 @@
         const t = e.touches ? e.touches[0] : e;
         const newPoint = {x: t.clientX, y: t.clientY};
         
-        ctx.shadowBlur = 15; ctx.shadowColor = '#00ffcc';
-        ctx.strokeStyle = '#fff'; ctx.lineWidth = 4;
+        ctx.shadowBlur = 20; ctx.shadowColor = mainNeonColor;
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 5;
+        ctx.lineCap = 'round';
         ctx.beginPath();
         ctx.moveTo(playerTrace[playerTrace.length-1].x, playerTrace[playerTrace.length-1].y);
         ctx.lineTo(newPoint.x, newPoint.y);
@@ -110,15 +122,13 @@
     }
 
     function handleEnd() {
-        if (!isDrawing || playerTrace.length < 10) { isDrawing = false; return; }
+        if (!isDrawing || playerTrace.length < 15) { isDrawing = false; return; }
         isDrawing = false;
         
-        // Magie: Normalizujeme hráčovu stopu, aby nezáleželo na pozici ani velikosti
         const normPlayer = normalize(playerTrace);
         
-        // Porovnání (Dynamic Time Warping zjednodušený)
         let diff = 0;
-        let samples = 30; // Porovnáme 30 bodů podél trasy
+        let samples = 50; 
         for(let i=0; i<samples; i++) {
             let pIdx = Math.floor((i/(samples-1)) * (normPlayer.length-1));
             let tIdx = Math.floor((i/(samples-1)) * (targetShape.length-1));
@@ -126,17 +136,28 @@
             diff += d;
         }
         
-        let score = Math.max(0, 100 - (diff / samples) * 2.5);
-        scoreEl.innerText = score.toFixed(0) + "%";
-        scoreEl.style.color = score > 75 ? '#00ffcc' : '#ff0055';
+        let score = Math.max(0, 100 - (diff / samples) * 2.8);
+        
+        // Penalizace za neuzavření tvaru (vzdálenost startu a konce)
+        const startEndDist = Math.hypot(normPlayer[0].x - normPlayer[normPlayer.length-1].x, normPlayer[0].y - normPlayer[normPlayer.length-1].y);
+        if (startEndDist > 15) score -= 10;
+
+        scoreEl.innerText = Math.max(0, score).toFixed(0) + "%";
+        scoreEl.style.color = score > 80 ? '#00ffcc' : (score > 50 ? '#ffcc00' : '#ff0055');
         scoreEl.classList.add('show');
         
-        if (navigator.vibrate) navigator.vibrate(score > 75 ? 50 : 200);
+        if (navigator.vibrate) navigator.vibrate(score > 80 ? [50, 30, 50] : 150);
     }
 
     canvas.addEventListener('touchstart', handleStart, {passive:false});
     canvas.addEventListener('touchmove', handleMove, {passive:false});
     canvas.addEventListener('touchend', handleEnd);
+    
+    // PC Support
+    canvas.addEventListener('mousedown', handleStart);
+    window.addEventListener('mousemove', (e) => { if(isDrawing) handleMove(e); });
+    window.addEventListener('mouseup', handleEnd);
+
     resize(); initTarget();
 </script>
 </body>
