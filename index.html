@@ -2,26 +2,26 @@
 <html lang="cs">
 <head>
     <meta charset="UTF-8">
-    <title>NEON TRACE - MASTER</title>
+    <title>NEON ZEN - YǑNG</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #000; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #fff; user-select: none; -webkit-user-select: none; touch-action: none; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #000; font-family: 'Segoe UI', sans-serif; color: #fff; user-select: none; -webkit-user-select: none; touch-action: none; }
         canvas { display: block; position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
         
         #ui { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between; padding: env(safe-area-inset-top) 20px env(safe-area-inset-bottom) 20px; box-sizing: border-box; }
         #header { text-align: center; margin-top: 20px; }
-        #score { font-size: 42px; font-weight: 900; text-shadow: 0 0 20px #fff; opacity: 0; transition: opacity 0.3s; transform: scale(0.8); }
-        #score.show { opacity: 1; transform: scale(1); }
+        #score { font-size: 50px; font-weight: 900; text-shadow: 0 0 20px #fff; opacity: 0; transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); transform: translateY(-20px); }
+        #score.show { opacity: 1; transform: translateY(0); }
         
-        #reference-box { position: absolute; top: 30px; right: 20px; width: 90px; height: 90px; border: 2px solid #00ffcc; border-radius: 15px; background: rgba(0, 255, 204, 0.05); box-shadow: 0 0 15px rgba(0, 255, 204, 0.2); display: flex; justify-content: center; align-items: center; }
-        #refCanvas { width: 70px; height: 70px; }
+        #reference-box { position: absolute; top: 30px; right: 20px; width: 100px; height: 100px; border: 1px solid rgba(0, 255, 204, 0.3); border-radius: 12px; background: rgba(0, 255, 204, 0.05); backdrop-filter: blur(5px); display: flex; justify-content: center; align-items: center; }
+        #refCanvas { width: 80px; height: 80px; }
         
-        #footer { text-align: center; margin-bottom: 40px; }
-        #instr { font-size: 16px; letter-spacing: 2px; color: #00ffcc; text-shadow: 0 0 10px #00ffcc; animation: pulse 1.5s infinite; }
+        #footer { text-align: center; margin-bottom: 50px; }
+        #instr { font-size: 14px; letter-spacing: 3px; color: #00ffcc; text-shadow: 0 0 10px #00ffcc; animation: pulse 2s infinite; font-weight: 300; }
         
-        @keyframes pulse { 0% { opacity: 0.4; transform: scale(0.98); } 50% { opacity: 1; transform: scale(1); } 100% { opacity: 0.4; transform: scale(0.98); } }
+        @keyframes pulse { 0% { opacity: 0.3; } 50% { opacity: 1; } 100% { opacity: 0.3; } }
     </style>
 </head>
 <body>
@@ -32,11 +32,11 @@
     <div id="header">
         <div id="score">0%</div>
         <div id="reference-box">
-            <canvas id="refCanvas" width="140" height="140"></canvas>
+            <canvas id="refCanvas" width="160" height="160"></canvas>
         </div>
     </div>
     <div id="footer">
-        <div id="instr">OBKRESLI SYMBOL JEDNÍM TAHEM</div>
+        <div id="instr">OBKRESLI ZNAK JEDNÍM TAHEM</div>
     </div>
 </div>
 
@@ -61,40 +61,44 @@
     }
     window.addEventListener('resize', resize);
 
-    // Definice čtverce (body od 0 do 100)
+    // DEFINICE ZNAKU: "YǑNG" (Věčnost)
     function defineTargetShape() {
         targetShapePoints = [
-            { x: 20, y: 20 }, { x: 80, y: 20 },
-            { x: 80, y: 80 }, { x: 20, y: 80 },
-            { x: 20, y: 20 }
+            { x: 50, y: 15 }, { x: 50, y: 25 }, // Tečka nahoře
+            { x: 20, y: 35 }, { x: 80, y: 35 }, // Horní břevno
+            { x: 50, y: 35 }, { x: 50, y: 85 }, { x: 40, y: 75 }, // Svislá s háčkem
+            { x: 50, y: 55 }, { x: 25, y: 55 }, { x: 20, y: 70 }, // Levá vlnka
+            { x: 50, y: 55 }, { x: 75, y: 65 }, { x: 85, y: 85 }  // Pravá vlnka
         ];
     }
 
     function drawReferenceToUI() {
         refCtx.clearRect(0, 0, refCanvas.width, refCanvas.height);
         refCtx.strokeStyle = targetColor;
-        refCtx.lineWidth = 6;
+        refCtx.lineWidth = 8;
         refCtx.lineCap = 'round';
         refCtx.lineJoin = 'round';
-        refCtx.shadowBlur = 10;
+        refCtx.shadowBlur = 15;
         refCtx.shadowColor = targetColor;
         
-        const s = 1.4; // Scale pro 140px canvas
+        const s = 1.6; 
         refCtx.beginPath();
         refCtx.moveTo(targetShapePoints[0].x * s, targetShapePoints[0].y * s);
         for (let i = 1; i < targetShapePoints.length; i++) {
+            // Detekce "skoku" (pokud jsou body příliš blízko u sebe v definici, nekresli čáru)
+            // Zde pro jednoduchost kreslíme vše, v neonu to vypadá dobře jako jeden tah
             refCtx.lineTo(targetShapePoints[i].x * s, targetShapePoints[i].y * s);
         }
         refCtx.stroke();
     }
 
     function drawReferenceToMain() {
-        const size = Math.min(canvas.width, canvas.height) * 0.6;
+        const size = Math.min(canvas.width, canvas.height) * 0.7;
         const offsetX = (canvas.width - size) / 2;
         const offsetY = (canvas.height - size) / 2;
         
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
-        ctx.lineWidth = 10;
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+        ctx.lineWidth = 15;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
         
@@ -106,7 +110,6 @@
         ctx.stroke();
     }
 
-    // --- OVLÁDÁNÍ (FIXED) ---
     function handleStart(e) {
         e.preventDefault();
         isDrawing = true;
@@ -130,7 +133,7 @@
         drawPlayerTrace();
     }
 
-    function handleEnd(e) {
+    function handleEnd() {
         if (!isDrawing) return;
         isDrawing = false;
         evaluateTrace();
@@ -139,10 +142,6 @@
     canvas.addEventListener('touchstart', handleStart, { passive: false });
     canvas.addEventListener('touchmove', handleMove, { passive: false });
     canvas.addEventListener('touchend', handleEnd, { passive: false });
-    // Podpora pro myš (testování na PC)
-    canvas.addEventListener('mousedown', handleStart);
-    window.addEventListener('mousemove', handleMove);
-    window.addEventListener('mouseup', handleEnd);
 
     function addPoint(x, y) {
         playerTrace.push({ x: x, y: y });
@@ -155,10 +154,10 @@
 
     function drawPlayerTrace() {
         if (playerTrace.length < 2) return;
-        ctx.shadowBlur = 15;
+        ctx.shadowBlur = 20;
         ctx.shadowColor = targetColor;
         ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 5;
+        ctx.lineWidth = 6;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
         
@@ -170,9 +169,9 @@
     }
 
     function evaluateTrace() {
-        if (playerTrace.length < 10) return;
+        if (playerTrace.length < 15) return;
         
-        const size = Math.min(canvas.width, canvas.height) * 0.6;
+        const size = Math.min(canvas.width, canvas.height) * 0.7;
         const offsetX = (canvas.width - size) / 2;
         const offsetY = (canvas.height - size) / 2;
 
@@ -181,39 +180,53 @@
             y: p.y * (size/100) + offsetY
         }));
 
-        let totalDist = 0;
+        let totalError = 0;
         for (let pTrace of playerTrace) {
             let minDist = Infinity;
-            // Hrubé porovnání s body úseček reference
             for (let i = 0; i < targetAbsPoints.length - 1; i++) {
                 const d = distToSegment(pTrace, targetAbsPoints[i], targetAbsPoints[i+1]);
                 if (d < minDist) minDist = d;
             }
-            totalDist += minDist;
+            totalError += minDist;
         }
 
-        const avgDist = totalDist / playerTrace.length;
-        let scorePercent = Math.max(0, 100 - (avgDist * 1.5));
+        const avgError = totalError / playerTrace.length;
+        // Přísnější hodnocení pro složitý znak
+        let scorePercent = Math.max(0, 100 - (avgError * 2.2));
         
-        // Bonus za dokončení celého tvaru (jednoduchá kontrola délky)
-        if (playerTrace.length < 30) scorePercent *= 0.5;
+        // Penalizace za neúplnost (krátký tah)
+        if (playerTrace.length < 50) scorePercent *= (playerTrace.length / 50);
 
         scoreEl.innerText = scorePercent.toFixed(0) + '%';
-        scoreEl.style.color = scorePercent > 70 ? '#00ffcc' : '#ff0055';
+        scoreEl.style.color = scorePercent > 80 ? '#00ffcc' : (scorePercent > 50 ? '#ffcc00' : '#ff0055');
         scoreEl.classList.add('show');
-        instrEl.innerText = 'Zkus to znovu!';
+        instrEl.innerText = 'ZKUS TO ZNOVU A PŘESNĚJI';
         instrEl.style.display = 'block';
 
-        if (navigator.vibrate) navigator.vibrate(scorePercent > 70 ? 50 : 200);
+        if (navigator.vibrate) navigator.vibrate(scorePercent > 80 ? [50, 30, 50] : 150);
+        
+        // Efektní finální vykreslení
+        flashTrace(scorePercent > 80 ? targetColor : '#ff0055');
     }
 
-    // Pomocná matika pro vzdálenost bodu od úsečky
     function distToSegment(p, v, w) {
         const l2 = Math.pow(v.x - w.x, 2) + Math.pow(v.y - w.y, 2);
         if (l2 == 0) return Math.hypot(p.x - v.x, p.y - v.y);
         let t = ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / l2;
         t = Math.max(0, Math.min(1, t));
         return Math.hypot(p.x - (v.x + t * (w.x - v.x)), p.y - (v.y + t * (w.y - v.y)));
+    }
+
+    function flashTrace(color) {
+        ctx.shadowBlur = 40;
+        ctx.shadowColor = color;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 8;
+        ctx.beginPath();
+        ctx.moveTo(playerTrace[0].x, playerTrace[0].y);
+        for (let i = 1; i < playerTrace.length; i++) ctx.lineTo(playerTrace[i].x, playerTrace[i].y);
+        ctx.stroke();
+        ctx.shadowBlur = 0;
     }
 
     defineTargetShape();
