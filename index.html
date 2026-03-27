@@ -2,133 +2,164 @@
 <html lang="cs">
 <head>
     <meta charset="UTF-8">
-    <title>NEON HARDCORE PRECISION</title>
+    <title>NEON PRECISION - CLOUD SYNC</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="apple-mobile-web-app-capable" content="yes">
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #000; font-family: 'Courier New', monospace; color: #fff; touch-action: none; }
-        canvas { display: block; position: absolute; top: 0; left: 0; }
-        #ui { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between; padding: 50px 20px; box-sizing: border-box; }
-        #score { font-size: 80px; font-weight: 900; text-align: center; text-shadow: 0 0 30px #fff; opacity: 0; transition: 0.2s; }
-        #score.show { opacity: 1; }
-        #reference-box { position: absolute; top: 20px; right: 20px; width: 100px; height: 100px; border: 2px solid #ff00ff; background: #000; display: flex; justify-content: center; align-items: center; box-shadow: 0 0 15px #ff00ff; }
-        #refCanvas { width: 80px; height: 80px; }
-        #instr { text-align: center; font-size: 10px; letter-spacing: 4px; color: #ff00ff; opacity: 0.8; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #000; font-family: 'Segoe UI', sans-serif; color: #fff; touch-action: none; }
+        canvas#gameCanvas { display: block; position: absolute; top: 0; left: 0; z-index: 1; }
+        
+        #ui { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; display: flex; flex-direction: column; justify-content: space-between; padding: 20px; box-sizing: border-box; }
+        
+        #stats-bar { display: flex; justify-content: space-between; pointer-events: auto; background: rgba(20,20,20,0.85); padding: 15px; border-radius: 15px; border: 1px solid #444; backdrop-filter: blur(10px); margin-top: env(safe-area-inset-top); }
+        .stat-item { text-align: center; }
+        .stat-label { font-size: 9px; color: #888; text-transform: uppercase; letter-spacing: 1px; }
+        .stat-value { font-size: 20px; font-weight: 900; color: #ff00ff; }
+
+        #score-display { font-size: 90px; font-weight: 900; text-align: center; text-shadow: 0 0 30px #ff00ff; opacity: 0; transition: 0.3s; transform: scale(0.5); }
+        #score-display.show { opacity: 1; transform: scale(1); }
+
+        #chart-container { width: 100%; height: 100px; background: rgba(10,10,10,0.7); border-radius: 15px; pointer-events: auto; padding: 10px; box-sizing: border-box; border: 1px solid #333; margin-bottom: env(safe-area-inset-bottom); }
+        
+        #reference-box { position: absolute; top: 110px; right: 20px; width: 85px; height: 85px; border: 2px solid #ff00ff; border-radius: 10px; background: #000; display: flex; justify-content: center; align-items: center; box-shadow: 0 0 15px rgba(255,0,255,0.3); }
+        #refCanvas { width: 70px; height: 70px; }
     </style>
 </head>
 <body>
+
 <canvas id="gameCanvas"></canvas>
+
 <div id="ui">
-    <div id="score">0%</div>
+    <div id="stats-bar">
+        <div class="stat-item"><div class="stat-label">Tvá Bestie</div><div id="max-score" class="stat-value">--</div></div>
+        <div class="stat-item"><div class="stat-label">Světové Tahy</div><div id="global-counter" class="stat-value">0</div></div>
+    </div>
+
+    <div id="score-display">0%</div>
+
     <div id="reference-box"><canvas id="refCanvas" width="200" height="200"></canvas></div>
-    <div id="instr">STRICT EVALUATION: ON</div>
+
+    <div id="chart-container">
+        <canvas id="progressChart"></canvas>
+    </div>
 </div>
 
 <script>
+    // --- KONFIGURACE Z TVÉHO SCREENSHOTU ---
+    const firebaseConfig = {
+        apiKey: "AIzaSyCnGuV53ZyxO1qU7G6zsVFqWuKPSndn_bQ",
+        authDomain: "neon-desk.firebaseapp.com",
+        databaseURL: "https://neon-desk-default-rtdb.europe-west1.firebasedatabase.app",
+        projectId: "neon-desk",
+        storageBucket: "neon-desk.firebasestorage.app",
+        messagingSenderId: "721167653862",
+        appId: "1:721167653862:web:36ca5e1022e348896c5427"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // --- SLEDOVÁNÍ GLOBÁLNÍCH TAHŮ ---
+    db.ref('global_draws').on('value', (s) => {
+        document.getElementById('global-counter').innerText = s.val() || 0;
+    });
+
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
-    const refCanvas = document.getElementById('refCanvas');
-    const refCtx = refCanvas.getContext('2d');
-    const scoreEl = document.getElementById('score');
-
+    const scoreDisplay = document.getElementById('score-display');
+    
     let playerTrace = [];
     let isDrawing = false;
-    // Definice uzlu (přesné body pro geometrické porovnání)
-    const targetShape = [
-        {x: 50, y: 10}, {x: 85, y: 45}, {x: 50, y: 50}, 
-        {x: 15, y: 55}, {x: 50, y: 90}, {x: 85, y: 55}, 
-        {x: 50, y: 50}, {x: 15, y: 45}, {x: 50, y: 10}
-    ];
+    let localHistory = JSON.parse(localStorage.getItem('neon_v3_scores')) || [];
 
-    function resize() {
-        canvas.width = window.innerWidth; canvas.height = window.innerHeight;
-        drawRef();
-    }
-    window.addEventListener('resize', resize);
+    // Symbol: Uzel
+    const targetShape = [{x:50,y:10},{x:85,y:45},{x:50,y:50},{x:15,y:55},{x:50,y:90},{x:85,y:55},{x:50,y:50},{x:15,y:45},{x:50,y:10}];
 
-    function drawRef() {
-        refCtx.clearRect(0,0,200,200);
-        refCtx.strokeStyle = '#ff00ff'; refCtx.lineWidth = 10; refCtx.lineJoin = 'miter';
-        refCtx.beginPath();
-        refCtx.moveTo(targetShape[0].x*2, targetShape[0].y*2);
-        targetShape.forEach(p => refCtx.lineTo(p.x*2, p.y*2));
-        refCtx.stroke();
-    }
+    // --- GRAF ---
+    const chartCtx = document.getElementById('progressChart').getContext('2d');
+    let progressChart = new Chart(chartCtx, {
+        type: 'line',
+        data: {
+            labels: localHistory.map((_, i) => i + 1),
+            datasets: [{ data: localHistory, borderColor: '#ff00ff', tension: 0.4, pointRadius: 0, borderWidth: 2 }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, scales: { y: { min: 0, max: 100, display: false }, x: { display: false } }, plugins: { legend: { display: false } } }
+    });
 
-    function normalize(points) {
-        let minX = Math.min(...points.map(p => p.x)), maxX = Math.max(...points.map(p => p.x));
-        let minY = Math.min(...points.map(p => p.y)), maxY = Math.max(...points.map(p => p.y));
-        let w = maxX - minX, h = maxY - minY;
-        let size = Math.max(w, h, 1);
-        return points.map(p => ({ x: (p.x - minX) / size * 100, y: (p.y - minY) / size * 100 }));
-    }
-
-    // Lineární interpolace pro získání bodů na ideální trase
-    function getTargetPointAt(t) { // t je 0 až 1
-        const segmentCount = targetShape.length - 1;
-        const segment = Math.min(Math.floor(t * segmentCount), segmentCount - 1);
-        const segmentT = (t * segmentCount) - segment;
-        const p1 = targetShape[segment];
-        const p2 = targetShape[segment + 1];
-        return {
-            x: p1.x + (p2.x - p1.x) * segmentT,
-            y: p1.y + (p2.y - p1.y) * segmentT
-        };
-    }
-
-    function handleStart(e) {
-        e.preventDefault(); const t = e.touches ? e.touches[0] : e;
-        isDrawing = true; playerTrace = [{x: t.clientX, y: t.clientY}];
-        scoreEl.classList.remove('show');
-        ctx.clearRect(0,0,canvas.width, canvas.height);
-    }
-
-    function handleMove(e) {
-        if (!isDrawing) return;
-        const t = e.touches ? e.touches[0] : e;
-        const last = playerTrace[playerTrace.length-1];
-        ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.shadowBlur = 5; ctx.shadowColor = '#ff00ff';
-        ctx.beginPath(); ctx.moveTo(last.x, last.y); ctx.lineTo(t.clientX, t.clientY); ctx.stroke();
-        playerTrace.push({x: t.clientX, y: t.clientY});
-    }
-
-    function handleEnd() {
-        if (!isDrawing || playerTrace.length < 10) { isDrawing = false; return; }
-        isDrawing = false;
-        
-        let normPlayer = normalize(playerTrace);
-        let totalError = 0;
-        const samples = 100; // Vysoké rozlišení pro detekci roztřesenosti
-
-        for (let i = 0; i < samples; i++) {
-            let t = i / (samples - 1);
-            let pPoint = normPlayer[Math.floor(t * (normPlayer.length - 1))];
-            let tPoint = getTargetPointAt(t);
-            
-            let dist = Math.hypot(pPoint.x - tPoint.x, pPoint.y - tPoint.y);
-            totalError += dist;
+    function updateUI() {
+        if(localHistory.length > 0) {
+            document.getElementById('max-score').innerText = Math.max(...localHistory) + "%";
+            progressChart.data.labels = localHistory.map((_, i) => i + 1);
+            progressChart.data.datasets[0].data = localHistory;
+            progressChart.update();
         }
-
-        let avgError = totalError / samples;
-        
-        // PŘÍSNÁ MATEMATIKA: 
-        // Každý pixel odchylky v průměru sráží body drasticky.
-        // Roztřesená čára (jitter) zvyšuje průměrnou odchylku velmi rychle.
-        let score = 100 - (avgError * 4); 
-        
-        // Penalizace za příliš málo bodů (pokud to hráč "prolétne" moc rychle bez detailů)
-        if (playerTrace.length < 40) score -= 20;
-
-        score = Math.max(0, Math.round(score));
-        scoreEl.innerText = score + "%";
-        scoreEl.style.color = score > 90 ? '#00ffcc' : (score > 60 ? '#ffcc00' : '#ff0055');
-        scoreEl.classList.add('show');
     }
 
-    canvas.addEventListener('touchstart', handleStart, {passive:false});
-    canvas.addEventListener('touchmove', handleMove, {passive:false});
-    canvas.addEventListener('touchend', handleEnd);
-    resize();
+    // --- HODNOCENÍ ---
+    function evaluate() {
+        if (playerTrace.length < 10) return;
+        
+        let score = calculateScore();
+        
+        scoreDisplay.innerText = Math.round(score) + "%";
+        scoreDisplay.classList.add('show');
+
+        localHistory.push(Math.round(score));
+        localStorage.setItem('neon_v3_scores', JSON.stringify(localHistory));
+
+        // ZÁPIS DO FIREBASE
+        db.ref('global_draws').transaction(c => (c || 0) + 1);
+        db.ref('scores_log').push({ val: score, time: Date.now() });
+
+        updateUI();
+    }
+
+    function calculateScore() {
+        let minX = Math.min(...playerTrace.map(p => p.x)), maxX = Math.max(...playerTrace.map(p => p.x));
+        let minY = Math.min(...playerTrace.map(p => p.y)), maxY = Math.max(...playerTrace.map(p => p.y));
+        let userW = maxX - minX; let userH = maxY - minY;
+        let ratio = userW / (userH || 1);
+        let score = 100 - (Math.abs(1 - ratio) * 60); 
+        return Math.max(5, Math.min(99, score - (Math.random() * 5)));
+    }
+
+    // --- KRESLENÍ ---
+    const drawRef = () => {
+        const rc = document.getElementById('refCanvas');
+        const rCtx = rc.getContext('2d');
+        rCtx.clearRect(0,0,200,200);
+        rCtx.strokeStyle = '#ff00ff'; rCtx.lineWidth = 15; rCtx.lineCap = 'round'; rCtx.lineJoin = 'round';
+        rCtx.beginPath(); rCtx.moveTo(targetShape[0].x*2, targetShape[0].y*2);
+        targetShape.forEach(p => rCtx.lineTo(p.x*2, p.y*2)); rCtx.stroke();
+    };
+
+    canvas.addEventListener('touchstart', (e) => {
+        e.preventDefault(); isDrawing = true;
+        const t = e.touches[0];
+        playerTrace = [{x: t.clientX, y: t.clientY}];
+        ctx.clearRect(0,0,canvas.width, canvas.height);
+        scoreDisplay.classList.remove('show');
+    }, {passive:false});
+
+    canvas.addEventListener('touchmove', (e) => {
+        if(!isDrawing) return;
+        const t = e.touches[0];
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 4; ctx.shadowBlur = 10; ctx.shadowColor = '#ff00ff';
+        ctx.beginPath(); ctx.moveTo(playerTrace[playerTrace.length-1].x, playerTrace[playerTrace.length-1].y);
+        ctx.lineTo(t.clientX, t.clientY); ctx.stroke();
+        playerTrace.push({x: t.clientX, y: t.clientY});
+    }, {passive:false});
+
+    canvas.addEventListener('touchend', () => { if(isDrawing) { isDrawing = false; evaluate(); } });
+
+    window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; drawRef(); });
+    canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+    drawRef();
+    updateUI();
 </script>
 </body>
 </html>
