@@ -2,7 +2,7 @@
 <html lang="cs">
 <head>
     <meta charset="UTF-8">
-    <title>NEON CHALLENGE - DAILY KNOT</title>
+    <title>NEON KNOT - FRIENDSHIP CHALLENGE</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -12,25 +12,23 @@
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #050505; font-family: 'Segoe UI', sans-serif; color: #fff; touch-action: none; }
         canvas#gameCanvas { display: block; position: absolute; top: 0; left: 0; z-index: 1; }
-        
         #ui { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; display: flex; flex-direction: column; justify-content: space-between; padding: 20px; box-sizing: border-box; }
         
-        #header { display: flex; flex-direction: column; gap: 10px; margin-top: env(safe-area-inset-top); pointer-events: auto; }
-        .glass-panel { background: rgba(20,20,20,0.8); backdrop-filter: blur(10px); border-radius: 15px; border: 1px solid #333; padding: 12px; }
-        
-        #stats-bar { display: flex; justify-content: space-between; align-items: center; }
+        .glass-panel { background: rgba(20,20,20,0.85); backdrop-filter: blur(10px); border-radius: 15px; border: 1px solid #444; padding: 12px; pointer-events: auto; }
+        #stats-bar { display: flex; justify-content: space-between; align-items: center; margin-top: env(safe-area-inset-top); }
         .stat-value { font-size: 18px; font-weight: 900; color: #ff00ff; display: block; }
         .stat-label { font-size: 8px; color: #888; text-transform: uppercase; }
 
-        #score-display { font-size: 80px; font-weight: 900; text-align: center; text-shadow: 0 0 30px #ff00ff; display: none; }
-        #overlay-msg { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; pointer-events: auto; width: 80%; }
-        
-        .btn { background: #ff00ff; color: #000; border: none; padding: 12px 20px; border-radius: 10px; font-weight: bold; margin-top: 10px; cursor: pointer; pointer-events: auto; }
-        .btn-invite { background: #00ffcc; margin-top: 5px; font-size: 12px; }
+        #score-display { font-size: 90px; font-weight: 900; text-align: center; text-shadow: 0 0 30px #ff00ff; opacity: 0; transition: 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); transform: scale(0.5); }
+        #score-display.show { opacity: 1; transform: scale(1); }
 
-        #chart-container { width: 100%; height: 100px; margin-bottom: env(safe-area-inset-bottom); pointer-events: auto; }
-        
-        #ref-container { position: absolute; top: 150px; right: 20px; width: 70px; height: 70px; border: 1px solid #ff00ff; border-radius: 10px; }
+        #overlay-msg { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; width: 80%; pointer-events: auto; }
+        .btn { background: #ff00ff; color: #000; border: none; padding: 12px 20px; border-radius: 10px; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        .btn-invite { background: #00ffcc; font-size: 11px; margin-top: 5px; width: 100%; }
+
+        #chart-container { width: 100%; height: 90px; margin-bottom: env(safe-area-inset-bottom); }
+        #reference-box { position: absolute; top: 160px; right: 20px; width: 80px; height: 80px; border: 1px solid #ff00ff; border-radius: 10px; background: rgba(255,0,255,0.05); display: flex; justify-content: center; align-items: center; }
+        #refCanvas { width: 65px; height: 65px; }
     </style>
 </head>
 <body>
@@ -40,26 +38,26 @@
 <div id="ui">
     <div id="header">
         <div class="glass-panel" id="stats-bar">
-            <div><span class="stat-label">Uživatel</span><span id="display-name" class="stat-value">...</span></div>
-            <div><span class="stat-label">Denní řada</span><span id="streak-val" class="stat-value">0 dní</span></div>
-            <div><span class="stat-label">Dnešní tahy</span><span id="attempts-left" class="stat-value">1/1</span></div>
+            <div><span class="stat-label">Hráč</span><span id="display-name" class="stat-value">...</span></div>
+            <div><span class="stat-label">Tahy</span><span id="attempts-left" class="stat-value">1/1</span></div>
+            <div><span class="stat-label">Dnešní Best</span><span id="max-score" class="stat-value">0%</span></div>
         </div>
-        <button class="btn btn-invite" onclick="inviteFriend()">➕ Vyzvat kamaráda (Bonus tah)</button>
+        <button class="btn btn-invite" onclick="inviteFriend()">🔗 POZVAT DALŠÍHO KAMARÁDA</button>
     </div>
 
     <div id="score-display">0%</div>
 
-    <div id="overlay-msg">
-        <h2 id="msg-text">Načítání...</h2>
-        <div id="msg-sub"></div>
+    <div id="overlay-msg" style="display:none;">
+        <h2 id="msg-text">Dnes už jsi hrál</h2>
+        <p id="msg-sub" style="font-size:12px; color:#888;">Počkej, až zahraje tvůj kamarád, nebo do zítřka!</p>
     </div>
 
-    <div id="chart-container" class="glass-panel">
-        <canvas id="progressChart"></canvas>
-    </div>
+    <div id="reference-box"><canvas id="refCanvas" width="200" height="200"></canvas></div>
+    <div id="chart-container" class="glass-panel"><canvas id="progressChart"></canvas></div>
 </div>
 
 <script>
+    // --- KONFIGURACE ---
     const firebaseConfig = {
         apiKey: "AIzaSyCnGuV53ZyxO1qU7G6zsVFqWuKPSndn_bQ",
         authDomain: "neon-desk.firebaseapp.com",
@@ -67,120 +65,124 @@
         projectId: "neon-desk",
         appId: "1:721167653862:web:36ca5e1022e348896c5427"
     };
-
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    let userId = localStorage.getItem('neon_uid') || 'user_' + Math.random().toString(36).substr(2, 9);
+    const userId = localStorage.getItem('neon_uid') || 'u_' + Math.random().toString(36).substr(2, 9);
     localStorage.setItem('neon_uid', userId);
-
-    let userName = localStorage.getItem('neon_name');
-    let attemptsToday = 0;
-    let maxAttempts = 1;
-    let lastDate = localStorage.getItem('neon_last_date');
-
-    // --- LOGIKA PŘIHLÁŠENÍ ---
-    if (!userName) {
-        userName = prompt("Zadej své jméno pro žebříček:");
-        if(!userName) userName = "Hráč";
-        localStorage.setItem('neon_name', userName);
-    }
+    let userName = localStorage.getItem('neon_name') || prompt("Tvé jméno:") || "Hráč";
+    localStorage.setItem('neon_name', userName);
     document.getElementById('display-name').innerText = userName;
 
-    // --- KONTROLA POZVÁNKY ---
+    let attemptsUsed = 0;
+    let bonusAttempts = 0;
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    // --- LOGIKA PROPOJENÍ A BONUSŮ ---
     const urlParams = new URLSearchParams(window.location.search);
-    const inviterId = urlParams.get('ref');
-    if (inviterId && inviterId !== userId) {
-        db.ref(`users/${inviterId}/bonus`).transaction(c => (c || 0) + 1);
-        db.ref(`users/${inviterId}/alerts`).push(`${userName} se připojil! Máš +1 tah.`);
+    const refId = urlParams.get('ref');
+    if (refId && refId !== userId) {
+        // Zapíšeme tě ke kamarádovi jako "follower"
+        db.ref(`users/${refId}/friends/${userId}`).set(userName);
     }
 
-    // --- SYNCHRONIZACE S DB ---
+    // Sledování tvých dat a bonusů od přátel
     db.ref(`users/${userId}`).on('value', snap => {
         const data = snap.val() || {};
-        const today = new Date().toLocaleDateString();
+        attemptsUsed = (data.history && data.history[todayStr]) ? Object.keys(data.history[todayStr]).length : 0;
         
-        // Reset tahů pokud je nový den
-        if (lastDate !== today) {
-            attemptsToday = 0;
-            localStorage.setItem('neon_last_date', today);
-        } else {
-            attemptsToday = data.usedToday || 0;
+        // Kontrola přátel - za každého, kdo dnes hrál, máš +1 tah
+        bonusAttempts = 0;
+        if (data.friends) {
+            Object.keys(data.friends).forEach(fId => {
+                db.ref(`users/${fId}/lastPlayed`).once('value', s => {
+                    if (s.val() === todayStr) {
+                        bonusAttempts++;
+                        updateAttemptsUI();
+                    }
+                });
+            });
         }
-
-        maxAttempts = 1 + (data.bonus || 0);
-        document.getElementById('attempts-left').innerText = `${maxAttempts - attemptsToday}/${maxAttempts}`;
-        document.getElementById('streak-val').innerText = (data.streak || 0) + " dní";
-        
-        checkAvailability();
+        updateAttemptsUI();
     });
 
-    // Upozornění na bonusy
-    db.ref(`users/${userId}/alerts`).on('child_added', snap => {
-        alert("BONUS: " + snap.val());
-        snap.ref.remove();
-    });
-
-    function checkAvailability() {
-        const overlay = document.getElementById('overlay-msg');
-        if (attemptsToday >= maxAttempts) {
-            overlay.style.display = "block";
-            document.getElementById('msg-text').innerText = "Dnešní limit vyčerpán";
-            document.getElementById('msg-sub').innerText = "Další tah zítra nebo za pozvání kamaráda.";
-        } else {
-            overlay.style.display = "none";
-        }
+    function updateAttemptsUI() {
+        let totalAllowed = 1 + bonusAttempts;
+        document.getElementById('attempts-left').innerText = `${totalAllowed - attemptsUsed}/${totalAllowed}`;
+        document.getElementById('overlay-msg').style.display = (attemptsUsed >= totalAllowed) ? "block" : "none";
     }
 
     function inviteFriend() {
         const link = window.location.origin + window.location.pathname + "?ref=" + userId;
         navigator.clipboard.writeText(link);
-        alert("Odkaz zkopírován! Pošli ho kamarádovi. Když zahraje, dostaneš tah navíc.");
+        alert("Odkaz pro kamaráda zkopírován! Když zahraje, získáš každý den tah navíc.");
     }
 
-    // --- HERNÍ LOGIKA (Zkráceno pro přehlednost, použij svůj evaluate z minula) ---
+    // --- HERNÍ LOGIKA (TVOJE OBLÍBENÁ) ---
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
+    const targetShape = [{x:50,y:10},{x:80,y:40},{x:50,y:50},{x:20,y:60},{x:50,y:90},{x:80,y:60},{x:50,y:50},{x:20,y:40},{x:50,y:10}];
     let playerTrace = [];
     let isDrawing = false;
 
-    canvas.addEventListener('touchstart', (e) => {
-        if (attemptsToday >= maxAttempts) return;
-        isDrawing = true;
-        playerTrace = [{x: e.touches[0].clientX, y: e.touches[0].clientY}];
-        ctx.clearRect(0,0,canvas.width, canvas.height);
-    });
+    function evaluate() {
+        if (playerTrace.length < 15) return;
+        const norm = normalize(playerTrace);
+        let diff = 0, samples = 50;
+        for(let i=0; i<samples; i++) {
+            let p = norm[Math.floor((i/(samples-1))*(norm.length-1))];
+            let t = targetShape[Math.floor((i/(samples-1))*(targetShape.length-1))];
+            diff += Math.hypot(p.x - t.x, p.y - t.y);
+        }
+        let score = Math.round(Math.max(0, 100 - (diff/samples)*2.8));
+        
+        // Zápis výsledku
+        db.ref(`users/${userId}/history/${todayStr}`).push(score);
+        db.ref(`users/${userId}/lastPlayed`).set(todayStr);
+        
+        showScore(score);
+    }
 
-    canvas.addEventListener('touchmove', (e) => {
-        if (!isDrawing) return;
-        const t = e.touches[0];
-        ctx.strokeStyle = '#fff'; ctx.lineWidth = 5;
-        ctx.lineTo(t.clientX, t.clientY); ctx.stroke();
-        playerTrace.push({x: t.clientX, y: t.clientY});
-    });
+    function normalize(pts) {
+        let minX = Math.min(...pts.map(p=>p.x)), maxX = Math.max(...pts.map(p=>p.x));
+        let minY = Math.min(...pts.map(p=>p.y)), maxY = Math.max(...pts.map(p=>p.y));
+        let s = Math.max(maxX-minX, maxY-minY, 1);
+        return pts.map(p => ({ x:(p.x-minX)/s*80+10, y:(p.y-minY)/s*80+10 }));
+    }
 
-    canvas.addEventListener('touchend', () => {
-        if (!isDrawing) return;
-        isDrawing = false;
-        finishTurn(Math.floor(Math.random() * 100)); // Tady bude tvůj výpočet %
-    });
-
-    function finishTurn(score) {
-        attemptsToday++;
-        db.ref(`users/${userId}`).update({
-            usedToday: attemptsToday,
-            lastScore: score,
-            name: userName
-        });
-        document.getElementById('score-display').innerText = score + "%";
-        document.getElementById('score-display').style.display = "block";
+    function showScore(s) {
+        const el = document.getElementById('score-display');
+        el.innerText = s + "%";
+        el.style.color = s > 80 ? '#00ffcc' : '#ff0055';
+        el.classList.add('show');
         setTimeout(() => { location.reload(); }, 3000);
     }
 
-    // Inicializace grafu a rozměrů (stejné jako minule)
-    window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; });
-    canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+    // --- KRESLENÍ A GRAF ---
+    canvas.addEventListener('touchstart', e => {
+        if (attemptsUsed >= (1 + bonusAttempts)) return;
+        isDrawing = true;
+        playerTrace = [{x:e.touches[0].clientX, y:e.touches[0].clientY}];
+        ctx.clearRect(0,0,canvas.width, canvas.height);
+    });
+    canvas.addEventListener('touchmove', e => {
+        if (!isDrawing) return;
+        const t = e.touches[0];
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 5; ctx.shadowBlur = 15; ctx.shadowColor = '#ff00ff';
+        ctx.lineTo(t.clientX, t.clientY); ctx.stroke();
+        playerTrace.push({x:t.clientX, y:t.clientY});
+    });
+    canvas.addEventListener('touchend', () => { if(isDrawing){ isDrawing=false; evaluate(); } });
 
+    window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; drawRef(); });
+    canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+    function drawRef() {
+        const r = document.getElementById('refCanvas').getContext('2d');
+        r.clearRect(0,0,200,200); r.strokeStyle='#ff00ff'; r.lineWidth=12; r.lineCap='round';
+        r.beginPath(); r.moveTo(targetShape[0].x*2, targetShape[0].y*2);
+        targetShape.forEach(p => r.lineTo(p.x*2, p.y*2)); r.stroke();
+    }
+    drawRef();
 </script>
 </body>
 </html>
