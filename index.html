@@ -2,7 +2,7 @@
 <html lang="cs">
 <head>
     <meta charset="UTF-8">
-    <title>NEON KNOT - BALANCED PRO</title>
+    <title>NEON KNOT - FINAL</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
@@ -21,14 +21,17 @@
         .stat-item { text-align: center; }
         .stat-label { font-size: 8px; color: #888; text-transform: uppercase; }
         .stat-value { font-size: 16px; font-weight: 900; color: #ff00ff; display: block; }
-        #lvl-badge { background: #ff00ff; color: #000; padding: 2px 8px; border-radius: 5px; font-size: 10px; font-weight: 900; }
 
-        #score-display { font-size: 90px; font-weight: 900; text-align: center; text-shadow: 0 0 30px #ff00ff; opacity: 0; transform: scale(0.8); transition: 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
-        #score-display.show { opacity: 1; transform: scale(1); }
+        #result-container { position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%); width: 100%; text-align: center; display: none; pointer-events: auto; }
+        #score-display { font-size: 100px; font-weight: 900; text-shadow: 0 0 30px #ff00ff; margin-bottom: 20px; }
+        
+        .action-btns { display: flex; gap: 15px; justify-content: center; }
+        .btn { border: none; padding: 15px 30px; border-radius: 50px; font-weight: bold; cursor: pointer; font-size: 14px; text-transform: uppercase; }
+        .btn-ok { background: #444; color: #fff; }
+        .btn-challenge { background: #ff00ff; color: #fff; box-shadow: 0 0 15px #ff00ff; }
 
-        #side-menu { position: absolute; top: 0; left: -100%; width: 85%; height: 100%; background: #0a0a0a; z-index: 100; transition: 0.3s; padding: 40px 20px; pointer-events: auto; border-right: 1px solid #ff00ff; box-sizing: border-box; overflow-y: auto; }
+        #side-menu { position: absolute; top: 0; left: -100%; width: 85%; height: 100%; background: #0a0a0a; z-index: 100; transition: 0.3s; padding: 40px 20px; pointer-events: auto; border-right: 1px solid #ff00ff; box-sizing: border-box; }
         #side-menu.open { left: 0; }
-        .user-header { font-size: 24px; font-weight: 900; color: #ff00ff; margin-bottom: 5px; }
         
         #reference-box { position: absolute; top: 130px; right: 20px; width: 80px; height: 80px; border: 1px solid #ff00ff; border-radius: 10px; background: rgba(255,0,255,0.05); display: flex; justify-content: center; align-items: center; }
         #refCanvas { width: 65px; height: 65px; }
@@ -40,8 +43,8 @@
 
 <div id="side-menu">
     <div style="text-align:right; font-size:28px; margin-bottom: 10px;" onclick="toggleMenu()">✕</div>
-    <div class="user-header" id="menu-user-name">...</div>
-    <div id="streak-info" style="font-size: 12px; color: #ff00ff;">🔥 TEST MODE (∞)</div>
+    <div style="font-size: 24px; font-weight: 900; color: #ff00ff;" id="menu-user-name">...</div>
+    <p style="color: #888;">TEST MODE: ∞ Pokusů</p>
 </div>
 
 <div id="ui">
@@ -49,16 +52,22 @@
         <div id="menu-btn" class="glass-panel" onclick="toggleMenu()">☰</div>
         <div id="stats-bar" class="glass-panel">
             <div class="stat-item"><span class="stat-label">Best</span><span id="all-time-best" class="stat-value">0%</span></div>
-            <div class="stat-item"><span id="lvl-badge">LVL 1</span></div>
-            <div class="stat-item"><span class="stat-label">Tahy</span><span id="attempts-left" class="stat-value">∞</span></div>
+            <div class="stat-item"><span class="stat-label">Tahy</span><span class="stat-value">∞</span></div>
         </div>
     </div>
-    <div id="score-display">0%</div>
+
+    <div id="result-container">
+        <div id="score-display">0%</div>
+        <div class="action-btns">
+            <button class="btn btn-ok" onclick="resetBoard()">OK</button>
+            <button class="btn btn-challenge" onclick="shareResult()">VYZVAT</button>
+        </div>
+    </div>
+
     <div id="reference-box"><canvas id="refCanvas" width="200" height="200"></canvas></div>
 </div>
 
 <script>
-    // --- FIREBASE CONFIG (beze změny) ---
     const firebaseConfig = {
         apiKey: "AIzaSyCnGuV53ZyxO1qU7G6zsVFqWuKPSndn_bQ",
         authDomain: "neon-desk.firebaseapp.com",
@@ -71,31 +80,28 @@
 
     const userId = localStorage.getItem('neon_uid') || 'u_' + Math.random().toString(36).substr(2, 9);
     localStorage.setItem('neon_uid', userId);
-    let userName = localStorage.getItem('neon_name') || prompt("Tvé jméno:") || "Hráč";
+    let userName = localStorage.getItem('neon_name') || prompt("Jméno:") || "Hráč";
     localStorage.setItem('neon_name', userName);
     document.getElementById('menu-user-name').innerText = userName;
 
+    let currentScore = 0;
     let bestEver = 0;
-    db.ref(`users/${userId}`).on('value', snap => {
-        const data = snap.val() || {};
-        bestEver = data.bestScore || 0;
+    db.ref(`users/${userId}/bestScore`).on('value', snap => {
+        bestEver = snap.val() || 0;
         document.getElementById('all-time-best').innerText = bestEver + "%";
-        document.getElementById('lvl-badge').innerText = "LVL " + (Math.floor(bestEver / 10) + 1);
     });
 
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
     const targetShape = [{x:50,y:10},{x:85,y:40},{x:50,y:55},{x:15,y:70},{x:50,y:95},{x:85,y:70},{x:50,y:55},{x:15,y:40},{x:50,y:10}];
     
-    let playerTrace = [], isDrawing = false, strokeTimer = null;
+    let playerTrace = [], isDrawing = false, isFinished = false;
     canvas.width = window.innerWidth; canvas.height = window.innerHeight;
 
     canvas.addEventListener('touchstart', e => {
-        if (strokeTimer) clearTimeout(strokeTimer);
-        // Smaže starý výsledek a začne znovu až při novém dotyku
+        if (isFinished) return;
         if (!isDrawing) {
             ctx.clearRect(0,0,canvas.width, canvas.height);
-            document.getElementById('score-display').classList.remove('show');
             playerTrace = [];
         }
         isDrawing = true;
@@ -106,76 +112,85 @@
         if (!isDrawing) return;
         const t = e.touches[0];
         const last = playerTrace[playerTrace.length-1];
-        ctx.strokeStyle = '#fff'; ctx.lineWidth = 4; ctx.shadowBlur = 15; ctx.shadowColor = '#ff00ff'; ctx.lineCap = 'round';
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 5; ctx.shadowBlur = 15; ctx.shadowColor = '#ff00ff'; ctx.lineCap = 'round';
         ctx.beginPath(); ctx.moveTo(last.x, last.y); ctx.lineTo(t.clientX, t.clientY); ctx.stroke();
         playerTrace.push({x: t.clientX, y: t.clientY});
     });
 
     canvas.addEventListener('touchend', () => {
-        strokeTimer = setTimeout(evaluateDraw, 200);
+        if (isDrawing && playerTrace.length > 15) evaluate();
+        isDrawing = false;
     });
 
-    function evaluateDraw() {
-        if (!isDrawing || playerTrace.length < 15) { isDrawing = false; return; }
-        isDrawing = false;
-
-        // 1. ZÍSKÁNÍ ROZMĚRŮ NÁKRESU (Bounding Box)
+    function evaluate() {
+        isFinished = true;
         let minX = Math.min(...playerTrace.map(p=>p.x)), maxX = Math.max(...playerTrace.map(p=>p.x));
         let minY = Math.min(...playerTrace.map(p=>p.y)), maxY = Math.max(...playerTrace.map(p=>p.y));
         let userW = maxX - minX, userH = maxY - minY;
         let size = Math.max(userW, userH, 50);
         let cX = minX + userW/2, cY = minY + userH/2;
 
-        // 2. NORMALIZACE HRÁČE PRO VÝPOČET
         const normPlayer = playerTrace.map(p => ({
             x: ((p.x - minX) / size) * 80 + 10,
             y: ((p.y - minY) / size) * 80 + 10
         }));
 
-        // 3. VÝPOČET SKÓRE (Vzorkování)
-        let diff = 0, samples = 60;
+        let diff = 0, samples = 50;
         for(let i=0; i<samples; i++) {
             let p = normPlayer[Math.floor((i/(samples-1))*(normPlayer.length-1))];
             let t = targetShape[Math.floor((i/(samples-1))*(targetShape.length-1))];
             diff += Math.hypot(p.x - t.x, p.y - t.y);
         }
         
-        let finalScore = Math.round(Math.max(0, 100 - (diff/samples)*2.4));
+        currentScore = Math.round(Math.max(0, 100 - (diff/samples)*2.0)); // Zjednodušeno na 2.0
 
-        // ANTI-ŠUDLA PENALIZACE (pokud je čára moc dlouhá vzhledem k velikosti)
-        let pLen = 0;
-        for(let i=1; i<playerTrace.length; i++) pLen += Math.hypot(playerTrace[i].x-playerTrace[i-1].x, playerTrace[i].y-playerTrace[i-1].y);
-        if (pLen > size * 7) finalScore = Math.round(finalScore * 0.3);
-
-        // 4. VYKRESLENÍ DUCHA (Čárkovaně, ve stejné velikosti jako pokus)
-        ctx.setLineDash([8, 8]);
-        ctx.strokeStyle = 'rgba(255, 0, 255, 0.6)';
-        ctx.lineWidth = 3;
-        ctx.shadowBlur = 0;
+        // Vykreslení ducha PŘÍMO POD nákres
+        ctx.setLineDash([8, 8]); ctx.strokeStyle = 'rgba(255, 0, 255, 0.7)'; ctx.lineWidth = 3; ctx.shadowBlur = 0;
         ctx.beginPath();
         targetShape.forEach((p, i) => {
-            // Přepočet souřadnic ducha tak, aby přesně seděl na hráčův bounding box
             let rx = ((p.x - 10) / 80) * size + minX;
             let ry = ((p.y - 10) / 80) * size + minY;
             if(i === 0) ctx.moveTo(rx, ry); else ctx.lineTo(rx, ry);
         });
-        ctx.stroke();
-        ctx.setLineDash([]); // Reset čárkování
+        ctx.stroke(); ctx.setLineDash([]);
 
-        animateScore(finalScore);
-
-        if(finalScore > bestEver) db.ref(`users/${userId}/bestScore`).set(finalScore);
+        document.getElementById('result-container').style.display = 'block';
+        animateScore(currentScore);
+        if(currentScore > bestEver) db.ref(`users/${userId}/bestScore`).set(currentScore);
     }
 
     function animateScore(target) {
         let curr = 0;
-        const el = document.getElementById('score-display');
-        el.classList.add('show');
         const itv = setInterval(() => {
-            el.innerText = curr + "%";
+            document.getElementById('score-display').innerText = curr + "%";
             if(curr >= target) clearInterval(itv);
             curr++;
         }, 15);
+    }
+
+    function resetBoard() {
+        ctx.clearRect(0,0,canvas.width, canvas.height);
+        document.getElementById('result-container').style.display = 'none';
+        isFinished = false;
+    }
+
+    async function shareResult() {
+        const text = `Pojď mě překonat! Dal jsem ${currentScore}% v NEON KNOT.`;
+        const url = window.location.origin + window.location.pathname + "?ref=" + userId;
+        
+        try {
+            canvas.toBlob(async (blob) => {
+                const file = new File([blob], 'my_knot.png', { type: 'image/png' });
+                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    await navigator.share({ files: [file], title: 'NEON KNOT', text: text, url: url });
+                } else {
+                    await navigator.share({ title: 'NEON KNOT', text: text, url: url });
+                }
+            });
+        } catch (err) {
+            navigator.clipboard.writeText(url);
+            alert("Odkaz zkopírován!");
+        }
     }
 
     function toggleMenu() { document.getElementById('side-menu').classList.toggle('open'); }
@@ -185,9 +200,8 @@
         r.beginPath(); r.moveTo(targetShape[0].x*2, targetShape[0].y*2);
         targetShape.forEach(p => r.lineTo(p.x*2, p.y*2)); r.stroke();
     }
-    
-    window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; drawRef(); });
     drawRef();
+    window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; drawRef(); });
 </script>
 </body>
 </html>
