@@ -2,7 +2,7 @@
 <html lang="cs">
 <head>
     <meta charset="UTF-8">
-    <title>NEON KNOT - PRO</title>
+    <title>NEON KNOT - TEST MODE</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
@@ -32,7 +32,6 @@
         .menu-title { color: #888; font-size: 12px; font-weight: bold; border-bottom: 1px solid #333; padding-bottom: 5px; margin-top: 25px; margin-bottom: 10px; text-transform: uppercase; }
         .friend-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #111; font-size: 14px; }
         
-        #overlay-msg { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; width: 80%; pointer-events: auto; }
         .btn-invite { background: #00ffcc; color: #000; border: none; padding: 15px; border-radius: 12px; width: 100%; font-weight: bold; margin-top: 20px; cursor: pointer; font-size: 16px; box-shadow: 0 0 15px rgba(0,255,204,0.3); }
         
         #reference-box { position: absolute; top: 130px; right: 20px; width: 80px; height: 80px; border: 1px solid #ff00ff; border-radius: 10px; background: rgba(255,0,255,0.05); display: flex; justify-content: center; align-items: center; }
@@ -46,17 +45,17 @@
 <div id="side-menu">
     <div style="text-align:right; font-size:28px; margin-bottom: 10px;" onclick="toggleMenu()">✕</div>
     
-    <div class="stat-label">Přihlášen jako:</div>
+    <div class="stat-label">Testovací režim:</div>
     <div class="user-header" id="menu-user-name">...</div>
     <div id="streak-info" style="font-size: 12px; color: #ff00ff;">🔥 Streak: 0 dní</div>
 
     <div class="menu-title">ŽEBŘÍČEK KAMARÁDŮ</div>
-    <div id="friends-list"><div style="color:#666; font-size:12px;">Pozvi někoho a uvidíš jeho skóre...</div></div>
+    <div id="friends-list"><div style="color:#666; font-size:12px;">Načítám...</div></div>
 
-    <div class="menu-title">VÝHODY</div>
-    <div id="rewards-info" style="font-size:11px; color: #00ffcc;">Hraj 20 dní pro +1 pokus trvale!</div>
+    <div class="menu-title">INFO</div>
+    <div style="font-size:11px; color: #00ffcc;">AKTIVNÍ NEOMEZENÉ TESTOVÁNÍ</div>
 
-    <button class="btn-invite" onclick="shareGame()">📤 POZVAT A SDÍLET</button>
+    <button class="btn-invite" onclick="shareGame()">📤 POZVAT A TESTOVAT</button>
 </div>
 
 <div id="ui">
@@ -65,16 +64,11 @@
         <div id="stats-bar" class="glass-panel">
             <div class="stat-item"><span class="stat-label">Best</span><span id="all-time-best" class="stat-value">0%</span></div>
             <div class="stat-item"><span id="lvl-badge">LVL 1</span></div>
-            <div class="stat-item"><span class="stat-label">Tahy</span><span id="attempts-left" class="stat-value">1/1</span></div>
+            <div class="stat-item"><span class="stat-label">Tahy</span><span id="attempts-left" class="stat-value">∞</span></div>
         </div>
     </div>
 
     <div id="score-display">0%</div>
-
-    <div id="overlay-msg" style="display:none;">
-        <h2 style="margin:0; color:#ff0055;">LIMIT VYČERPÁN</h2>
-        <button class="btn-invite" style="width: auto; padding: 10px 30px;" onclick="shareGame()">VYZVAT DALŠÍ</button>
-    </div>
 
     <div id="reference-box"><canvas id="refCanvas" width="200" height="200"></canvas></div>
 </div>
@@ -92,72 +86,48 @@
 
     const userId = localStorage.getItem('neon_uid') || 'u_' + Math.random().toString(36).substr(2, 9);
     localStorage.setItem('neon_uid', userId);
-    let userName = localStorage.getItem('neon_name') || prompt("Tvé jméno:") || "Hráč";
+    let userName = localStorage.getItem('neon_name') || prompt("Tvé jméno pro testy:") || "Tester";
     localStorage.setItem('neon_name', userName);
     document.getElementById('menu-user-name').innerText = userName;
 
     const todayStr = new Date().toISOString().split('T')[0];
-    let attemptsUsed = 0, bonusAttempts = 0, bestEver = 0, streak = 0, totalDaysPlayed = 0;
+    let bestEver = 0;
 
-    // OBOUSTRANNÉ PŘÁTELSTVÍ
+    // Oboustranné přátelství (vylepšené)
     const urlParams = new URLSearchParams(window.location.search);
     const refId = urlParams.get('ref');
     if (refId && refId !== userId) {
         db.ref(`users/${refId}/friends/${userId}`).set(userName);
-        db.ref(`users/${userId}/friends/${refId}`).once('value', s => {
-            if(!s.exists()) {
-                db.ref(`users/${refId}/name`).once('value', n => {
-                    db.ref(`users/${userId}/friends/${refId}`).set(n.val() || "Karád");
-                });
-            }
+        db.ref(`users/${refId}/name`).once('value', n => {
+            db.ref(`users/${userId}/friends/${refId}`).set(n.val() || "Přítel");
         });
     }
 
     db.ref(`users/${userId}`).on('value', snap => {
         const data = snap.val() || {};
         bestEver = data.bestScore || 0;
-        streak = data.streak || 0;
-        totalDaysPlayed = data.totalDays || 0;
-        attemptsUsed = (data.history && data.history[todayStr]) ? Object.keys(data.history[todayStr]).length : 0;
-        
         document.getElementById('all-time-best').innerText = bestEver + "%";
         document.getElementById('lvl-badge').innerText = "LVL " + (Math.floor(bestEver / 10) + 1);
-        document.getElementById('streak-info').innerText = `🔥 Streak: ${streak} dní`;
+        document.getElementById('streak-info').innerText = `🔥 Streak: ${data.streak || 0} dní`;
 
-        if (totalDaysPlayed >= 20) {
-            document.getElementById('rewards-info').innerText = "✅ Bonus +1 pokus aktivní!";
-        }
-
-        bonusAttempts = 0;
         if (data.friends) {
             const fList = document.getElementById('friends-list');
             fList.innerHTML = "";
-            // UNIKÁTNÍ ŽEBŘÍČEK
             Object.keys(data.friends).forEach(fId => {
                 db.ref(`users/${fId}`).once('value', fs => {
                     const fData = fs.val() || {};
-                    if (fData.lastPlayed === todayStr) bonusAttempts++;
                     fList.innerHTML += `<div class="friend-row"><span>${fData.name || 'Hráč'}</span><b>${fData.bestScore || 0}%</b></div>`;
-                    updateAttemptsUI();
                 });
             });
         }
-        updateAttemptsUI();
     });
-
-    function updateAttemptsUI() {
-        let base = (totalDaysPlayed >= 20) ? 2 : 1;
-        let total = base + bonusAttempts;
-        document.getElementById('attempts-left').innerText = `${total - attemptsUsed}/${total}`;
-        document.getElementById('overlay-msg').style.display = (attemptsUsed >= total) ? "block" : "none";
-    }
 
     function toggleMenu() { document.getElementById('side-menu').classList.toggle('open'); }
 
     async function shareGame() {
         const shareData = {
             title: 'NEON KNOT',
-            text: `Vyzývám tě! Můj rekord je ${bestEver}%. Dáš víc?`,
+            text: `Testovací výzva! Můj rekord je ${bestEver}%. Dáš víc?`,
             url: window.location.origin + window.location.pathname + "?ref=" + userId
         };
         try { await navigator.share(shareData); } catch (err) {
@@ -172,8 +142,6 @@
     let playerTrace = [], isDrawing = false;
 
     canvas.addEventListener('touchstart', e => {
-        let base = (totalDaysPlayed >= 20) ? 2 : 1;
-        if (attemptsUsed >= (base + bonusAttempts)) return;
         isDrawing = true; playerTrace = [{x:e.touches[0].clientX, y:e.touches[0].clientY}];
         ctx.clearRect(0,0,canvas.width, canvas.height);
     });
@@ -190,7 +158,7 @@
     });
 
     canvas.addEventListener('touchend', () => { 
-        if(!isDrawing) return; isDrawing = false;
+        if(!isDrawing || playerTrace.length < 5) return; isDrawing = false;
         const norm = normalize(playerTrace);
         let diff = 0, samples = 50;
         for(let i=0; i<samples; i++) {
@@ -200,35 +168,18 @@
         }
         let finalScore = Math.round(Math.max(0, 100 - (diff/samples)*2.4));
         
-        // SROVNÁVACÍ ORIGINÁL POD KRESBOU
         drawGhost(playerTrace);
-
-        // NABÍHAJÍCÍ ČÍSLO
         animateScore(finalScore);
 
-        // STREAK LOGIKA
-        db.ref(`users/${userId}`).once('value', s => {
-            const d = s.val() || {};
-            let newStreak = d.streak || 0;
-            let lastDate = d.lastPlayed || "";
-            let yesterday = new Date(); yesterday.setDate(yesterday.getDate()-1);
-            let yesterdayStr = yesterday.toISOString().split('T')[0];
+        // Uložení dat i v testu (pro kontrolu databáze)
+        db.ref(`users/${userId}/history/${todayStr}`).push(finalScore);
+        db.ref(`users/${userId}/name`).set(userName);
+        if(finalScore > bestEver) db.ref(`users/${userId}/bestScore`).set(finalScore);
 
-            if(lastDate === yesterdayStr) newStreak++;
-            else if(lastDate !== todayStr) newStreak = 1;
-
-            let totalD = d.totalDays || 0;
-            if(lastDate !== todayStr) totalD++;
-
-            db.ref(`users/${userId}/streak`).set(newStreak);
-            db.ref(`users/${userId}/totalDays`).set(totalD);
-            db.ref(`users/${userId}/lastPlayed`).set(todayStr);
-            db.ref(`users/${userId}/history/${todayStr}`).push(finalScore);
-            db.ref(`users/${userId}/name`).set(userName);
-            if(finalScore > bestEver) db.ref(`users/${userId}/bestScore`).set(finalScore);
-        });
-
-        setTimeout(() => location.reload(), 4000);
+        setTimeout(() => {
+            ctx.clearRect(0,0,canvas.width, canvas.height);
+            document.getElementById('score-display').classList.remove('show');
+        }, 3500);
     });
 
     function animateScore(target) {
@@ -239,18 +190,17 @@
             el.innerText = current + "%";
             if(current >= target) {
                 clearInterval(interval);
-                el.style.textShadow = "0 0 50px #fff, 0 0 20px #ff00ff"; // Problesknutí
+                el.style.textShadow = "0 0 50px #fff, 0 0 20px #ff00ff";
             }
             current++;
-        }, 20);
+        }, 15);
     }
 
     function drawGhost(pts) {
         let minX = Math.min(...pts.map(p=>p.x)), maxX = Math.max(...pts.map(p=>p.x));
         let minY = Math.min(...pts.map(p=>p.y)), maxY = Math.max(...pts.map(p=>p.y));
         let s = Math.max(maxX-minX, maxY-minY, 1);
-        
-        ctx.strokeStyle = 'rgba(255, 0, 255, 0.4)';
+        ctx.strokeStyle = 'rgba(255, 0, 255, 0.5)';
         ctx.lineWidth = 2;
         ctx.beginPath();
         targetShape.forEach((p, i) => {
@@ -268,7 +218,6 @@
         return pts.map(p => ({ x:(p.x-minX)/s*80+10, y:(p.y-minY)/s*80+10 }));
     }
 
-    // Ref box vykreslení
     window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; drawRef(); });
     canvas.width = window.innerWidth; canvas.height = window.innerHeight;
     function drawRef() {
