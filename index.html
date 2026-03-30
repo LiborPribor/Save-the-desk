@@ -2,42 +2,64 @@
 <html lang="cs">
 <head>
     <meta charset="UTF-8">
-    <title>NEON KNOT - PRECISION MODE</title>
+    <title>NEON KNOT - BALANCED FIX</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #050505; font-family: sans-serif; color: #fff; touch-action: none; }
-        canvas { display: block; position: absolute; top: 0; left: 0; z-index: 1; }
-        #ui { position: absolute; width: 100%; height: 100%; pointer-events: none; z-index: 10; display: flex; flex-direction: column; padding: 20px; box-sizing: border-box; }
-        .glass { background: rgba(20,20,20,0.8); backdrop-filter: blur(10px); border: 1px solid #444; border-radius: 15px; pointer-events: auto; }
-        #stats { display: flex; justify-content: space-between; padding: 15px; margin-top: env(safe-area-inset-top); }
-        #result { margin-top: 20px; text-align: center; display: none; padding: 20px; }
-        #score-text { font-size: 64px; font-weight: 900; text-shadow: 0 0 20px #ff00ff; color: #fff; }
-        .btn { background: #ff00ff; border: none; padding: 12px 25px; border-radius: 8px; color: #fff; font-weight: bold; margin-top: 15px; cursor: pointer; text-transform: uppercase; }
-        #ref-container { position: absolute; top: 120px; right: 20px; width: 60px; height: 60px; border: 1px solid #ff00ff; border-radius: 10px; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #050505; font-family: 'Segoe UI', sans-serif; color: #fff; touch-action: none; }
+        canvas#gameCanvas { display: block; position: absolute; top: 0; left: 0; z-index: 1; }
+        #ui { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; display: flex; flex-direction: column; padding: 20px; box-sizing: border-box; }
+        .glass-panel { background: rgba(15,15,15,0.9); backdrop-filter: blur(15px); border-radius: 12px; border: 1px solid #444; padding: 10px; pointer-events: auto; }
+        #top-row { display: flex; gap: 10px; margin-top: env(safe-area-inset-top); }
+        #menu-btn { width: 45px; height: 45px; display: flex; align-items: center; justify-content: center; font-size: 24px; cursor: pointer; color: #ff00ff; }
+        #stats-bar { flex-grow: 1; display: flex; justify-content: space-around; align-items: center; }
+        .stat-item { text-align: center; }
+        .stat-label { font-size: 8px; color: #888; text-transform: uppercase; }
+        .stat-value { font-size: 16px; font-weight: 900; color: #ff00ff; display: block; }
+        #result-container { margin-top: 10px; text-align: center; display: none; pointer-events: auto; width: 100%; animation: fadeIn 0.3s ease; }
+        #score-display { font-size: 60px; font-weight: 900; text-shadow: 0 0 20px #ff00ff; margin-bottom: 10px; line-height: 1; }
+        .action-btns { display: flex; gap: 10px; justify-content: center; }
+        .btn { border: none; padding: 12px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; text-transform: uppercase; }
+        .btn-ok { background: #333; color: #fff; border: 1px solid #555; }
+        .btn-challenge { background: #ff00ff; color: #fff; box-shadow: 0 0 15px rgba(255,0,255,0.4); }
+        #side-menu { position: absolute; top: 0; left: -100%; width: 85%; height: 100%; background: #0a0a0a; z-index: 100; transition: 0.3s; padding: 40px 20px; pointer-events: auto; border-right: 1px solid #ff00ff; box-sizing: border-box; }
+        #side-menu.open { left: 0; }
+        #reference-box { position: absolute; top: 130px; right: 20px; width: 65px; height: 65px; border: 1px solid #ff00ff; border-radius: 10px; background: rgba(255,0,255,0.05); display: flex; justify-content: center; align-items: center; }
+        #refCanvas { width: 55px; height: 55px; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
 <body>
 
 <canvas id="gameCanvas"></canvas>
 
-<div id="ui">
-    <div id="stats" class="glass">
-        <div><small style="color:#888">BEST</small><br><span id="best-score" style="color:#ff00ff; font-weight:bold">0%</span></div>
-        <div style="text-align:right"><small style="color:#888">LEVEL</small><br><b>1</b></div>
-    </div>
-
-    <div id="result" class="glass">
-        <div id="score-text">0%</div>
-        <button class="btn" onclick="resetGame()">Zkusit znovu</button>
-    </div>
+<div id="side-menu">
+    <div style="text-align:right; font-size:28px; margin-bottom: 10px;" onclick="toggleMenu()">✕</div>
+    <div style="font-size: 24px; font-weight: 900; color: #ff00ff;" id="menu-user-name">Hráč</div>
 </div>
 
-<div id="ref-container"><canvas id="refCanvas" width="120" height="120"></canvas></div>
+<div id="ui">
+    <div id="top-row">
+        <div id="menu-btn" class="glass-panel" onclick="toggleMenu()">☰</div>
+        <div id="stats-bar" class="glass-panel">
+            <div class="stat-item"><span class="stat-label">Best</span><span id="all-time-best" class="stat-value">0%</span></div>
+            <div class="stat-item"><span class="stat-label">Tahy</span><span class="stat-value">∞</span></div>
+        </div>
+    </div>
+    <div id="result-container" class="glass-panel">
+        <div id="score-display">0%</div>
+        <div class="action-btns">
+            <button class="btn btn-ok" onclick="resetBoard()">Znovu</button>
+            <button class="btn btn-challenge" onclick="shareGame()">Sdílet</button>
+        </div>
+    </div>
+    <div id="reference-box"><canvas id="refCanvas" width="200" height="200"></canvas></div>
+</div>
 
 <script>
-    // Tvůj Firebase config ponechán beze změny
     const firebaseConfig = {
         apiKey: "AIzaSyCnGuV53ZyxO1qU7G6zsVFqWuKPSndn_bQ",
         authDomain: "neon-desk.firebaseapp.com",
@@ -47,128 +69,138 @@
     };
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
-    const uid = localStorage.getItem('neon_uid') || 'u' + Math.random().toString(36).substr(2, 5);
-    localStorage.setItem('neon_uid', uid);
+    const userId = localStorage.getItem('neon_uid') || 'u_' + Math.random().toString(36).substr(2, 9);
+    localStorage.setItem('neon_uid', userId);
+
+    let bestEver = 0;
+    db.ref(`users/${userId}/bestScore`).on('value', snap => {
+        bestEver = snap.val() || 0;
+        document.getElementById('all-time-best').innerText = bestEver + "%";
+    });
 
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
     const targetShape = [{x:50,y:10},{x:85,y:40},{x:50,y:55},{x:15,y:70},{x:50,y:95},{x:85,y:70},{x:50,y:55},{x:15,y:40},{x:50,y:10}];
-    const checkPoints = [{x:50,y:10},{x:85,y:40},{x:15,y:40},{x:50,y:95},{x:15,y:70},{x:85,y:70}];
     
-    let path = [], drawing = false, finished = false;
+    let playerTrace = [], isDrawing = false, isFinished = false;
     canvas.width = window.innerWidth; canvas.height = window.innerHeight;
 
-    // Funkce pro kreslení reference v rohu
-    function drawRef() {
-        const r = document.getElementById('refCanvas').getContext('2d');
-        r.strokeStyle = '#ff00ff'; r.lineWidth = 4; r.lineJoin = 'round';
-        r.beginPath(); targetShape.forEach((p, i) => { i===0 ? r.moveTo(p.x*1.2, p.y*1.2) : r.lineTo(p.x*1.2, p.y*1.2); });
-        r.stroke();
-    }
-    drawRef();
-
     canvas.addEventListener('touchstart', e => {
-        if(finished) return;
-        drawing = true; path = [];
-        ctx.clearRect(0,0,canvas.width, canvas.height);
-        addPoint(e.touches[0]);
+        if (isFinished) return;
+        if (!isDrawing) { ctx.clearRect(0,0,canvas.width, canvas.height); playerTrace = []; }
+        isDrawing = true;
+        playerTrace.push({x: e.touches[0].clientX, y: e.touches[0].clientY});
     });
 
     canvas.addEventListener('touchmove', e => {
-        if(!drawing) return;
-        addPoint(e.touches[0]);
-        drawPath();
+        if (!isDrawing) return;
+        const t = e.touches[0];
+        const last = playerTrace[playerTrace.length-1];
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 5; ctx.shadowBlur = 15; ctx.shadowColor = '#ff00ff'; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(last.x, last.y); ctx.lineTo(t.clientX, t.clientY); ctx.stroke();
+        playerTrace.push({x: t.clientX, y: t.clientY});
     });
 
     canvas.addEventListener('touchend', () => {
-        if(drawing && path.length > 10) evaluate();
-        drawing = false;
+        if (isDrawing && playerTrace.length > 15) evaluate();
+        isDrawing = false;
     });
 
-    function addPoint(t) { path.push({x: t.clientX, y: t.clientY}); }
-
-    function drawPath() {
-        ctx.strokeStyle = '#fff'; ctx.lineWidth = 4; ctx.shadowBlur = 10; ctx.shadowColor = '#ff00ff';
-        ctx.beginPath();
-        path.forEach((p, i) => { i===0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y); });
-        ctx.stroke();
-    }
-
     function evaluate() {
-        finished = true;
+        isFinished = true;
+        let minX = Math.min(...playerTrace.map(p=>p.x)), maxX = Math.max(...playerTrace.map(p=>p.x));
+        let minY = Math.min(...playerTrace.map(p=>p.y)), maxY = Math.max(...playerTrace.map(p=>p.y));
         
-        // 1. Zjistíme opsaný obdélník tahu
-        const xs = path.map(p => p.x), ys = path.map(p => p.y);
-        const minX = Math.min(...xs), maxX = Math.max(...xs);
-        const minY = Math.min(...ys), maxY = Math.max(...ys);
-        const drawW = maxX - minX, drawH = maxY - minY;
+        let drawW = maxX - minX, drawH = maxY - minY;
         
-        // Pokud je to moc malé (čmáranice), rovnou trest
-        if (drawW < 100 || drawH < 100) { finishScore(Math.floor(Math.random()*15)); return; }
+        // 1. TREST ZA MINI ČMRKANCE
+        if (drawW < 60 || drawH < 60) { showScore(0); return; }
 
-        const centerX = minX + drawW/2, centerY = minY + drawH/2;
-        const scale = Math.max(drawW, drawH) / 80;
+        let size = Math.max(drawW, drawH, 50);
+        let centerX = minX + drawW / 2;
+        let centerY = minY + drawH / 2;
 
-        // Normalizace hráčových bodů
-        const normPath = path.map(p => ({
-            x: (p.x - centerX) / scale + 50,
-            y: (p.y - centerY) / scale + 50
+        const normPlayer = playerTrace.map(p => ({
+            x: ((p.x - centerX) / size) * 80 + 50,
+            y: ((p.y - centerY) / size) * 80 + 50
         }));
 
-        // 2. Kontrola checkpointů (MUSÍ tam být body)
+        // 2. KONTROLA TVARU (Zrcadlo)
+        let totalErr = 0;
+        normPlayer.forEach(p => {
+            let minDist = Infinity;
+            for(let i=0; i<targetShape.length-1; i++) {
+                let d = distToSegment(p, targetShape[i], targetShape[i+1]);
+                if (d < minDist) minDist = d;
+            }
+            totalErr += minDist;
+        });
+        let avgErr = totalErr / normPlayer.length;
+
+        // 3. KONTROLA "PROJETÍ" ROHŮ (Proti kolečku)
+        const checkPoints = [{x:50,y:10}, {x:85,y:40}, {x:15,y:40}, {x:50,y:95}];
         let hits = 0;
         checkPoints.forEach(cp => {
-            const reached = normPath.some(p => Math.hypot(p.x - cp.x, p.y - cp.y) < 15);
-            if(reached) hits++;
+            if (normPlayer.some(p => Math.hypot(p.x - cp.x, p.y - cp.y) < 14)) hits++;
         });
 
-        // 3. Výpočet geometrické přesnosti
-        let totalDist = 0;
-        normPath.forEach(p => {
-            let minDist = Infinity;
-            for(let i=0; i < targetShape.length-1; i++) {
-                minDist = Math.min(minDist, distToSegment(p, targetShape[i], targetShape[i+1]));
-            }
-            totalDist += minDist;
-        });
-
-        let accuracy = 100 - (totalDist / normPath.length * 8);
+        // VÝPOČET SKÓRE
+        let score = 100 - (avgErr * 12); // Základ podle přesnosti čáry
         
-        // KOMBINOVANÁ LOGIKA
-        // Výrazně srazit body, pokud chybí rohy (checkpointy)
-        let checkpointMultiplier = hits / checkPoints.length;
-        let finalScore = accuracy * Math.pow(checkpointMultiplier, 2);
+        // Bonus/Penalta podle toho, jestli trefil rohy (Kolečko netrefí všechny rohy diamantu)
+        let cornerMultiplier = hits / checkPoints.length; 
+        score *= Math.pow(cornerMultiplier, 1.5); 
 
-        // Trest za příliš dlouhou čáru (čmárání dokola)
-        let pathLen = 0;
-        for(let i=1; i<path.length; i++) pathLen += Math.hypot(path[i].x-path[i-1].x, path[i].y-path[i-1].y);
-        if (pathLen > (drawW + drawH) * 5) finalScore *= 0.5;
+        // Trest za přílišné čmárání mimo
+        if (avgErr > 10) score *= 0.5;
 
-        finishScore(Math.max(0, Math.round(finalScore)));
+        showScore(Math.round(Math.max(0, score)));
+
+        // Vykreslení ducha
+        ctx.setLineDash([8, 8]); ctx.strokeStyle = 'rgba(255, 0, 255, 0.5)'; ctx.lineWidth = 2;
+        ctx.beginPath();
+        targetShape.forEach((p, i) => {
+            let rx = ((p.x - 50) / 80) * size + centerX;
+            let ry = ((p.y - 50) / 80) * size + centerY;
+            i === 0 ? ctx.moveTo(rx, ry) : ctx.lineTo(rx, ry);
+        });
+        ctx.stroke(); ctx.setLineDash([]);
     }
 
     function distToSegment(p, v, w) {
-        const l2 = Math.hypot(v.x-w.x, v.y-w.y)**2;
-        if (l2 === 0) return Math.hypot(p.x-v.x, p.y-v.y);
-        let t = ((p.x-v.x)*(w.x-v.x) + (p.y-v.y)*(w.y-v.y)) / l2;
-        t = Math.max(0, Math.min(1, t));
-        return Math.hypot(p.x - (v.x + t*(w.x-v.x)), p.y - (v.y + t*(w.y-v.y)));
+        let l2 = Math.hypot(v.x - w.x, v.y - w.y)**2;
+        if (l2 == 0) return Math.hypot(p.x - v.x, p.y - v.y);
+        let t = Math.max(0, Math.min(1, ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / l2));
+        return Math.hypot(p.x - (v.x + t * (w.x - v.x)), p.y - (v.y + t * (w.y - v.y)));
     }
 
-    function finishScore(s) {
-        document.getElementById('result').style.display = 'block';
-        document.getElementById('score-text').innerText = s + "%";
-        db.ref(`users/${uid}/bestScore`).transaction(current => Math.max(current || 0, s));
-        db.ref(`users/${uid}/bestScore`).on('value', snap => {
-            document.getElementById('best-score').innerText = (snap.val() || 0) + "%";
-        });
+    function showScore(s) {
+        document.getElementById('result-container').style.display = 'block';
+        let curr = 0;
+        const itv = setInterval(() => {
+            document.getElementById('score-display').innerText = curr + "%";
+            if(curr >= s) clearInterval(itv);
+            curr++;
+        }, 15);
+        if(s > bestEver) db.ref(`users/${userId}/bestScore`).set(s);
     }
 
-    function resetGame() {
-        finished = false; path = [];
+    function resetBoard() {
         ctx.clearRect(0,0,canvas.width, canvas.height);
-        document.getElementById('result').style.display = 'none';
+        document.getElementById('result-container').style.display = 'none';
+        isFinished = false;
     }
+
+    function toggleMenu() { document.getElementById('side-menu').classList.toggle('open'); }
+    function drawRef() {
+        const r = document.getElementById('refCanvas').getContext('2d');
+        r.clearRect(0,0,200,200); r.strokeStyle='#ff00ff'; r.lineWidth=12; r.lineCap='round';
+        r.beginPath(); r.moveTo(targetShape[0].x*2, targetShape[0].y*2);
+        targetShape.forEach(p => r.lineTo(p.x*2, p.y*2)); r.stroke();
+    }
+    drawRef();
+    window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; drawRef(); });
+    function shareGame() { alert("Skóre uloženo!"); }
 </script>
 </body>
 </html>
