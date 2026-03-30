@@ -26,7 +26,7 @@
         #score-display { font-size: 90px; font-weight: 900; text-align: center; text-shadow: 0 0 30px #ff00ff; opacity: 0; transition: 0.4s; }
         #score-display.show { opacity: 1; transform: scale(1.1); }
 
-        #side-menu { position: absolute; top: 0; left: -100%; width: 85%; height: 100%; background: #0a0a0a; z-index: 100; transition: 0.3s; padding: 40px 20px; pointer-events: auto; border-right: 1px solid #ff00ff; box-sizing: border-box; }
+        #side-menu { position: absolute; top: 0; left: -100%; width: 85%; height: 100%; background: #0a0a0a; z-index: 100; transition: 0.3s; padding: 40px 20px; pointer-events: auto; border-right: 1px solid #ff00ff; box-sizing: border-box; overflow-y: auto; }
         #side-menu.open { left: 0; }
         .user-header { font-size: 24px; font-weight: 900; color: #ff00ff; margin-bottom: 5px; }
         .menu-title { color: #888; font-size: 12px; font-weight: bold; border-bottom: 1px solid #333; padding-bottom: 5px; margin-top: 25px; margin-bottom: 10px; text-transform: uppercase; }
@@ -48,17 +48,14 @@
     
     <div class="stat-label">Přihlášen jako:</div>
     <div class="user-header" id="menu-user-name">...</div>
+    <div id="streak-info" style="font-size: 12px; color: #ff00ff;">🔥 Streak: 0 dní</div>
 
     <div class="menu-title">ŽEBŘÍČEK KAMARÁDŮ</div>
     <div id="friends-list"><div style="color:#666; font-size:12px;">Pozvi někoho a uvidíš jeho skóre...</div></div>
 
-    <div class="menu-title">PRAVIDLA</div>
-    <div style="font-size:13px; color:#ccc; line-height: 1.6;">
-        • 1 tah denně (reset o půlnoci).<br>
-        • Každý aktivní kamarád = <b>tah navíc</b>.<br>
-        • Přesnost určuje tvůj Level.
-    </div>
-    
+    <div class="menu-title">VÝHODY</div>
+    <div id="rewards-info" style="font-size:11px; color: #00ffcc;">Hraj 20 dní pro +1 pokus trvale!</div>
+
     <button class="btn-invite" onclick="shareGame()">📤 POZVAT A SDÍLET</button>
 </div>
 
@@ -76,12 +73,10 @@
 
     <div id="overlay-msg" style="display:none;">
         <h2 style="margin:0; color:#ff0055;">LIMIT VYČERPÁN</h2>
-        <p style="font-size:12px; color:#888;">Nové tahy získáš od kamarádů nebo zítra.</p>
-        <button class="btn-invite" style="width: auto; padding: 10px 30px;" onclick="shareGame()">ZÍSKAT TAH</button>
+        <button class="btn-invite" style="width: auto; padding: 10px 30px;" onclick="shareGame()">VYZVAT DALŠÍ</button>
     </div>
 
     <div id="reference-box"><canvas id="refCanvas" width="200" height="200"></canvas></div>
-    <div style="height:60px;"></div>
 </div>
 
 <script>
@@ -102,25 +97,42 @@
     document.getElementById('menu-user-name').innerText = userName;
 
     const todayStr = new Date().toISOString().split('T')[0];
-    let attemptsUsed = 0, bonusAttempts = 0, bestEver = 0;
+    let attemptsUsed = 0, bonusAttempts = 0, bestEver = 0, streak = 0, totalDaysPlayed = 0;
 
+    // OBOUSTRANNÉ PŘÁTELSTVÍ
     const urlParams = new URLSearchParams(window.location.search);
     const refId = urlParams.get('ref');
     if (refId && refId !== userId) {
         db.ref(`users/${refId}/friends/${userId}`).set(userName);
+        db.ref(`users/${userId}/friends/${refId}`).once('value', s => {
+            if(!s.exists()) {
+                db.ref(`users/${refId}/name`).once('value', n => {
+                    db.ref(`users/${userId}/friends/${refId}`).set(n.val() || "Karád");
+                });
+            }
+        });
     }
 
     db.ref(`users/${userId}`).on('value', snap => {
         const data = snap.val() || {};
         bestEver = data.bestScore || 0;
+        streak = data.streak || 0;
+        totalDaysPlayed = data.totalDays || 0;
         attemptsUsed = (data.history && data.history[todayStr]) ? Object.keys(data.history[todayStr]).length : 0;
+        
         document.getElementById('all-time-best').innerText = bestEver + "%";
         document.getElementById('lvl-badge').innerText = "LVL " + (Math.floor(bestEver / 10) + 1);
+        document.getElementById('streak-info').innerText = `🔥 Streak: ${streak} dní`;
+
+        if (totalDaysPlayed >= 20) {
+            document.getElementById('rewards-info').innerText = "✅ Bonus +1 pokus aktivní!";
+        }
 
         bonusAttempts = 0;
         if (data.friends) {
             const fList = document.getElementById('friends-list');
             fList.innerHTML = "";
+            // UNIKÁTNÍ ŽEBŘÍČEK
             Object.keys(data.friends).forEach(fId => {
                 db.ref(`users/${fId}`).once('value', fs => {
                     const fData = fs.val() || {};
@@ -134,7 +146,8 @@
     });
 
     function updateAttemptsUI() {
-        let total = 1 + bonusAttempts;
+        let base = (totalDaysPlayed >= 20) ? 2 : 1;
+        let total = base + bonusAttempts;
         document.getElementById('attempts-left').innerText = `${total - attemptsUsed}/${total}`;
         document.getElementById('overlay-msg').style.display = (attemptsUsed >= total) ? "block" : "none";
     }
@@ -144,15 +157,12 @@
     async function shareGame() {
         const shareData = {
             title: 'NEON KNOT',
-            text: `Zkus porazit můj rekord ${bestEver}% v Neon Knot!`,
+            text: `Vyzývám tě! Můj rekord je ${bestEver}%. Dáš víc?`,
             url: window.location.origin + window.location.pathname + "?ref=" + userId
         };
-        try {
-            await navigator.share(shareData);
-        } catch (err) {
-            // Fallback pro PC
+        try { await navigator.share(shareData); } catch (err) {
             navigator.clipboard.writeText(shareData.url);
-            alert("Odkaz zkopírován do schránky!");
+            alert("Odkaz zkopírován!");
         }
     }
 
@@ -162,22 +172,22 @@
     let playerTrace = [], isDrawing = false;
 
     canvas.addEventListener('touchstart', e => {
-        if (attemptsUsed >= (1 + bonusAttempts)) return;
+        let base = (totalDaysPlayed >= 20) ? 2 : 1;
+        if (attemptsUsed >= (base + bonusAttempts)) return;
         isDrawing = true; playerTrace = [{x:e.touches[0].clientX, y:e.touches[0].clientY}];
         ctx.clearRect(0,0,canvas.width, canvas.height);
-    }, {passive:false});
+    });
 
     canvas.addEventListener('touchmove', e => {
         if (!isDrawing) return;
         const t = e.touches[0];
-        ctx.strokeStyle = '#fff'; ctx.lineWidth = 2.5; 
-        ctx.shadowBlur = 10; ctx.shadowColor = '#ff00ff'; ctx.lineCap = 'round';
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 2.5; ctx.shadowBlur = 10; ctx.shadowColor = '#ff00ff';
         ctx.beginPath();
         ctx.moveTo(playerTrace[playerTrace.length-1].x, playerTrace[playerTrace.length-1].y);
         ctx.lineTo(t.clientX, t.clientY);
         ctx.stroke();
         playerTrace.push({x:t.clientX, y:t.clientY});
-    }, {passive:false});
+    });
 
     canvas.addEventListener('touchend', () => { 
         if(!isDrawing) return; isDrawing = false;
@@ -188,18 +198,68 @@
             let t = targetShape[Math.floor((i/(samples-1))*(targetShape.length-1))];
             diff += Math.hypot(p.x - t.x, p.y - t.y);
         }
-        // UPRAVENÁ TOLERANCE (2.4 místo 2.8) - méně přísné
-        let score = Math.round(Math.max(0, 100 - (diff/samples)*2.4));
+        let finalScore = Math.round(Math.max(0, 100 - (diff/samples)*2.4));
         
-        db.ref(`users/${userId}/history/${todayStr}`).push(score);
-        db.ref(`users/${userId}/lastPlayed`).set(todayStr);
-        db.ref(`users/${userId}/name`).set(userName);
-        if(score > bestEver) db.ref(`users/${userId}/bestScore`).set(score);
-        
-        const el = document.getElementById('score-display');
-        el.innerText = score + "%"; el.classList.add('show');
-        setTimeout(() => location.reload(), 3000);
+        // SROVNÁVACÍ ORIGINÁL POD KRESBOU
+        drawGhost(playerTrace);
+
+        // NABÍHAJÍCÍ ČÍSLO
+        animateScore(finalScore);
+
+        // STREAK LOGIKA
+        db.ref(`users/${userId}`).once('value', s => {
+            const d = s.val() || {};
+            let newStreak = d.streak || 0;
+            let lastDate = d.lastPlayed || "";
+            let yesterday = new Date(); yesterday.setDate(yesterday.getDate()-1);
+            let yesterdayStr = yesterday.toISOString().split('T')[0];
+
+            if(lastDate === yesterdayStr) newStreak++;
+            else if(lastDate !== todayStr) newStreak = 1;
+
+            let totalD = d.totalDays || 0;
+            if(lastDate !== todayStr) totalD++;
+
+            db.ref(`users/${userId}/streak`).set(newStreak);
+            db.ref(`users/${userId}/totalDays`).set(totalD);
+            db.ref(`users/${userId}/lastPlayed`).set(todayStr);
+            db.ref(`users/${userId}/history/${todayStr}`).push(finalScore);
+            db.ref(`users/${userId}/name`).set(userName);
+            if(finalScore > bestEver) db.ref(`users/${userId}/bestScore`).set(finalScore);
+        });
+
+        setTimeout(() => location.reload(), 4000);
     });
+
+    function animateScore(target) {
+        let current = 0;
+        const el = document.getElementById('score-display');
+        el.classList.add('show');
+        const interval = setInterval(() => {
+            el.innerText = current + "%";
+            if(current >= target) {
+                clearInterval(interval);
+                el.style.textShadow = "0 0 50px #fff, 0 0 20px #ff00ff"; // Problesknutí
+            }
+            current++;
+        }, 20);
+    }
+
+    function drawGhost(pts) {
+        let minX = Math.min(...pts.map(p=>p.x)), maxX = Math.max(...pts.map(p=>p.x));
+        let minY = Math.min(...pts.map(p=>p.y)), maxY = Math.max(...pts.map(p=>p.y));
+        let s = Math.max(maxX-minX, maxY-minY, 1);
+        
+        ctx.strokeStyle = 'rgba(255, 0, 255, 0.4)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        targetShape.forEach((p, i) => {
+            let rx = (p.x-10)/80 * s + minX;
+            let ry = (p.y-10)/80 * s + minY;
+            if(i===0) ctx.moveTo(rx, ry); else ctx.lineTo(rx, ry);
+        });
+        ctx.stroke();
+    }
 
     function normalize(pts) {
         let minX = Math.min(...pts.map(p=>p.x)), maxX = Math.max(...pts.map(p=>p.x));
@@ -208,6 +268,7 @@
         return pts.map(p => ({ x:(p.x-minX)/s*80+10, y:(p.y-minY)/s*80+10 }));
     }
 
+    // Ref box vykreslení
     window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; drawRef(); });
     canvas.width = window.innerWidth; canvas.height = window.innerHeight;
     function drawRef() {
