@@ -2,7 +2,7 @@
 <html lang="cs">
 <head>
     <meta charset="UTF-8">
-    <title>NEON KNOT - ANTI-CHEAT EDITION</title>
+    <title>NEON KNOT - PRO EDITION</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
@@ -25,7 +25,6 @@
         #side-menu { position: absolute; top: 0; left: -100%; width: 85%; height: 100%; background: #0a0a0a; z-index: 100; transition: 0.3s; padding: 40px 20px; pointer-events: auto; border-right: 1px solid #ff00ff; box-sizing: border-box; }
         #side-menu.open { left: 0; }
         .user-header { font-size: 24px; font-weight: 900; color: #ff00ff; }
-        .btn-invite { background: #00ffcc; color: #000; border: none; padding: 15px; border-radius: 12px; width: 100%; font-weight: bold; margin-top: 20px; cursor: pointer; }
         #reference-box { position: absolute; top: 130px; right: 20px; width: 80px; height: 80px; border: 1px solid #ff00ff; border-radius: 10px; background: rgba(255,0,255,0.05); display: flex; justify-content: center; align-items: center; }
         #refCanvas { width: 65px; height: 65px; }
     </style>
@@ -38,7 +37,6 @@
     <div style="text-align:right; font-size:28px;" onclick="toggleMenu()">✕</div>
     <div class="user-header" id="menu-user-name">...</div>
     <div id="friends-list" style="margin-top:20px;"></div>
-    <button class="btn-invite" onclick="shareGame()">📤 POZVAT KAMARÁDA</button>
 </div>
 
 <div id="ui">
@@ -55,7 +53,7 @@
 </div>
 
 <script>
-    // --- FIREBASE CONFIG ---
+    // --- KONFIGURACE ---
     const firebaseConfig = {
         apiKey: "AIzaSyCnGuV53ZyxO1qU7G6zsVFqWuKPSndn_bQ",
         authDomain: "neon-desk.firebaseapp.com",
@@ -68,7 +66,7 @@
 
     const userId = localStorage.getItem('neon_uid') || 'u_' + Math.random().toString(36).substr(2, 9);
     localStorage.setItem('neon_uid', userId);
-    let userName = localStorage.getItem('neon_name') || prompt("Tvé jméno:") || "Hráč";
+    let userName = localStorage.getItem('neon_name') || prompt("Jméno:") || "Hráč";
     localStorage.setItem('neon_name', userName);
     document.getElementById('menu-user-name').innerText = userName;
 
@@ -77,16 +75,23 @@
         const data = snap.val() || {};
         bestEver = data.bestScore || 0;
         document.getElementById('all-time-best').innerText = bestEver + "%";
-        document.getElementById('lvl-badge').innerText = "LVL " + (Math.floor(bestEver / 10) + 1);
     });
 
-    // --- HERNÍ LOGIKA ---
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
     const targetShape = [{x:50,y:10},{x:85,y:40},{x:50,y:55},{x:15,y:70},{x:50,y:95},{x:85,y:70},{x:50,y:55},{x:15,y:40},{x:50,y:10}];
     
     let playerTrace = [], isDrawing = false, strokeTimer = null;
     canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+
+    // --- POMOCNÉ FUNKCE ---
+    function distToSegment(p, v, w) {
+        let l2 = Math.hypot(v.x - w.x, v.y - w.y) ** 2;
+        if (l2 === 0) return Math.hypot(p.x - v.x, p.y - v.y);
+        let t = ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / l2;
+        t = Math.max(0, Math.min(1, t));
+        return Math.hypot(p.x - (v.x + t * (w.x - v.x)), p.y - (v.y + t * (w.y - v.y)));
+    }
 
     canvas.addEventListener('touchstart', e => {
         if (strokeTimer) clearTimeout(strokeTimer);
@@ -103,71 +108,73 @@
         if (!isDrawing) return;
         const t = e.touches[0];
         const last = playerTrace[playerTrace.length-1];
-        ctx.strokeStyle = '#fff'; ctx.lineWidth = 4; ctx.shadowBlur = 12; ctx.shadowColor = '#ff00ff'; ctx.lineCap = 'round';
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 4; ctx.shadowBlur = 15; ctx.shadowColor = '#ff00ff'; ctx.lineCap = 'round';
         ctx.beginPath(); ctx.moveTo(last.x, last.y); ctx.lineTo(t.clientX, t.clientY); ctx.stroke();
         playerTrace.push({x: t.clientX, y: t.clientY});
     });
 
     canvas.addEventListener('touchend', () => {
-        strokeTimer = setTimeout(evaluateDraw, 200);
+        strokeTimer = setTimeout(evaluateDraw, 250);
     });
 
     function evaluateDraw() {
         if (!isDrawing || playerTrace.length < 15) { isDrawing = false; return; }
         isDrawing = false;
 
-        // 1. BOUNDING BOX & NORMÁL
         let minX = Math.min(...playerTrace.map(p=>p.x)), maxX = Math.max(...playerTrace.map(p=>p.x));
         let minY = Math.min(...playerTrace.map(p=>p.y)), maxY = Math.max(...playerTrace.map(p=>p.y));
-        let userW = maxX - minX, userH = maxY - minY;
-        let size = Math.max(userW, userH, 50);
-        let cX = minX + userW/2, cY = minY + userH/2;
+        let size = Math.max(maxX - minX, maxY - minY, 50);
+        let cX = minX + (maxX-minX)/2, cY = minY + (maxY-minY)/2;
 
         const normPlayer = playerTrace.map(p => ({
             x: ((p.x - cX) / size) * 80 + 50,
             y: ((p.y - cY) / size) * 80 + 50
         }));
 
-        // 2. CHECKPOINTY (Rohy a křížení)
-        const checkpoints = [{x:50,y:10}, {x:85,y:40}, {x:50,y:55}, {x:15,y:70}, {x:50,y:95}, {x:85,y:70}, {x:15,y:40}];
-        let hits = 0;
-        checkpoints.forEach(cp => {
-            if (normPlayer.some(p => Math.hypot(p.x - cp.x, p.y - cp.y) < 15)) hits++;
-        });
-
-        // 3. PŘESNOST ČÁRY
-        let totalTargetDist = 0;
-        targetShape.forEach(t => {
-            totalTargetDist += Math.min(...normPlayer.map(p => Math.hypot(p.x - t.x, p.y - t.y)));
-        });
-        let accuracy = Math.max(0, 100 - (totalTargetDist / targetShape.length) * 8);
-
-        // 4. ANTI-SHUDLA (Kontrola délky)
-        let pLen = 0;
-        for(let i=1; i<playerTrace.length; i++) pLen += Math.hypot(playerTrace[i].x-playerTrace[i-1].x, playerTrace[i].y-playerTrace[i-1].y);
-        let tLen = size * 3.8;
-        
-        let finalScore = accuracy;
-        if (hits < 5) finalScore *= 0.3; // Pokud jsi neprojel většinu rohů, smůla
-        if (pLen > tLen * 1.8) {
-            let penalty = (pLen / tLen - 1.8) * 45;
-            finalScore -= penalty;
+        // VEKTOROVÁ KONTROLA ÚSEČEK
+        let segmentScores = [];
+        for (let i = 0; i < targetShape.length - 1; i++) {
+            let p1 = targetShape[i], p2 = targetShape[i+1];
+            let closePoints = normPlayer.filter(p => distToSegment(p, p1, p2) < 12);
+            
+            if (closePoints.length < 2) {
+                segmentScores.push(0);
+            } else {
+                let hasStart = closePoints.some(p => Math.hypot(p.x - p1.x, p.y - p1.y) < 22);
+                let hasEnd = closePoints.some(p => Math.hypot(p.x - p2.x, p.y - p2.y) < 22);
+                segmentScores.push(hasStart && hasEnd ? 100 : 20);
+            }
         }
+
+        let baseScore = segmentScores.reduce((a,b)=>a+b, 0) / segmentScores.length;
+
+        // PENALIZACE ZA ODPAD (Knedlík/Kolečko filtr)
+        let wastePoints = 0;
+        normPlayer.forEach(p => {
+            let minDist = Infinity;
+            for (let i=0; i<targetShape.length-1; i++) {
+                let d = distToSegment(p, targetShape[i], targetShape[i+1]);
+                if (d < minDist) minDist = d;
+            }
+            if (minDist > 14) wastePoints++;
+        });
+
+        let wasteRatio = wastePoints / normPlayer.length;
+        // Brutální srážka: Pokud je víc než 30 % bodů mimo čáry, skóre letí k nule
+        let finalScore = baseScore * Math.max(0, (1 - wasteRatio * 2.5));
 
         finalScore = Math.round(Math.max(0, finalScore));
 
-        // VYKRESLENÍ DUCHA
-        ctx.setLineDash([5, 5]); ctx.strokeStyle = 'rgba(255, 0, 255, 0.6)'; ctx.lineWidth = 2; ctx.shadowBlur = 0;
+        // DUCH
+        ctx.setLineDash([5, 5]); ctx.strokeStyle = 'rgba(255,0,255,0.5)'; ctx.lineWidth = 2; ctx.shadowBlur = 0;
         ctx.beginPath();
         targetShape.forEach((p, i) => {
-            let rx = ((p.x - 50) / 80) * size + cX;
-            let ry = ((p.y - 50) / 80) * size + cY;
+            let rx = ((p.x-50)/80)*size + cX, ry = ((p.y-50)/80)*size + cY;
             if(i===0) ctx.moveTo(rx, ry); else ctx.lineTo(rx, ry);
         });
         ctx.stroke(); ctx.setLineDash([]);
 
         animateScore(finalScore);
-
         if(finalScore > bestEver) db.ref(`users/${userId}/bestScore`).set(finalScore);
     }
 
@@ -184,18 +191,12 @@
     function toggleMenu() { document.getElementById('side-menu').classList.toggle('open'); }
     function drawRef() {
         const r = document.getElementById('refCanvas').getContext('2d');
-        r.clearRect(0,0,200,200); r.strokeStyle='#ff00ff'; r.lineWidth=12; r.lineCap='round';
+        r.clearRect(0,0,200,200); r.strokeStyle='#ff00ff'; r.lineWidth=14; r.lineCap='round';
         r.beginPath(); r.moveTo(targetShape[0].x*2, targetShape[0].y*2);
         targetShape.forEach(p => r.lineTo(p.x*2, p.y*2)); r.stroke();
     }
     drawRef();
     window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; drawRef(); });
-
-    async function shareGame() {
-        const url = window.location.origin + window.location.pathname + "?ref=" + userId;
-        if(navigator.share) { navigator.share({title:'NEON KNOT', text:'Dáš víc než '+bestEver+'%?', url:url}); }
-        else { navigator.clipboard.writeText(url); alert("Odkaz zkopírován!"); }
-    }
 </script>
 </body>
 </html>
