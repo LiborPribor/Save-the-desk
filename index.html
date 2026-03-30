@@ -127,86 +127,82 @@
         playerTrace.push({x: t.clientX, y: t.clientY});
     });
 
-    canvas.addEventListener('touchend', () => {
-        if (!isDrawing || playerTrace.length < 10) { isDrawing = false; return; }
-        isDrawing = false;
-
-        // Dynamické zaměření na nákres uživatele
+canvas.addEventListener('touchend', () => { 
+        if(!isDrawing || playerTrace.length < 10) return; isDrawing = false;
+        
         let minX = Math.min(...playerTrace.map(p=>p.x)), maxX = Math.max(...playerTrace.map(p=>p.x));
         let minY = Math.min(...playerTrace.map(p=>p.y)), maxY = Math.max(...playerTrace.map(p=>p.y));
         let userW = maxX - minX;
         let userH = maxY - minY;
         let userSize = Math.max(userW, userH, 1);
 
-        // 1. Výpočet přesnosti čáry
+        const normPlayer = playerTrace.map(p => ({
+            x: ((p.x - minX) / userSize) * 80 + 10,
+            y: ((p.y - minY) / userSize) * 80 + 10
+        }));
+
+        // 1. VÝPOČET PŘESNOSTI
         let totalDist = 0;
-        playerTrace.forEach(p => {
+        normPlayer.forEach(p => {
             let minDist = Infinity;
             targetShape.forEach(t => {
-                let tx = ((t.x - 10) / 80) * userSize + minX;
-                let ty = ((t.y - 10) / 80) * userSize + minY;
-                let d = Math.hypot(p.x - tx, p.y - ty);
+                let d = Math.hypot(p.x - t.x, p.y - t.y);
                 if (d < minDist) minDist = d;
             });
             totalDist += minDist;
         });
+        let precisionScore = Math.max(0, 100 - (totalDist / normPlayer.length) * 7);
 
-        let avgDist = totalDist / playerTrace.length;
-        let relativeError = avgDist / userSize;
-        let precisionScore = Math.max(0, 100 - (relativeError * 150));
-
-        // 2. Výpočet pokrytí (kontrola, zda uživatel projel celý tvar)
+        // 2. KONTROLA POKRYTÍ (Zóny)
         let reachedZones = 0;
-        for (let i = 0; i < 10; i++) {
-            let t = targetShape[Math.floor((i / 9) * (targetShape.length - 1))];
-            let tx = ((t.x - 10) / 80) * userSize + minX;
-            let ty = ((t.y - 10) / 80) * userSize + minY;
-            if (playerTrace.some(p => Math.hypot(p.x - tx, p.y - ty) < userSize * 0.15)) reachedZones++;
+        for (let i = 0; i < 15; i++) { // Zvýšili jsme počet zón na 15
+            let targetP = targetShape[Math.floor((i / 14) * (targetShape.length - 1))];
+            if (normPlayer.some(p => Math.hypot(p.x - targetP.x, p.y - targetP.y) < 12)) reachedZones++;
         }
-        let coverageScore = (reachedZones / 10) * 100;
+        let coverageScore = (reachedZones / 15) * 100;
 
-        let finalScore = Math.round((precisionScore * 0.4) + (coverageScore * 0.6));
-        if (finalScore > 97) finalScore = 100;
+        // 3. ANTI-SCRIBBLE PENALIZACE (Klíčová změna!)
+        // Spočítáme reálnou délku tvojí čáry
+        let playerPathLength = 0;
+        for(let i=1; i<playerTrace.length; i++) {
+            playerPathLength += Math.hypot(playerTrace[i].x - playerTrace[i-1].x, playerTrace[i-1].y - playerTrace[i-1].y);
+        }
+        // Odhadovaná délka ideálního diamantu v tvém měřítku (obvod je cca 320 jednotek v normalizovaném 0-100)
+        let targetPathLength = userSize * 3.5; 
+        let lengthRatio = playerPathLength / targetPathLength;
 
-        drawGhost(playerTrace);
-        animateScore(finalScore);
+        let finalScore = (precisionScore * 0.4) + (coverageScore * 0.6);
 
-        db.ref(`users/${userId}/history/${todayStr}`).push(finalScore);
-        db.ref(`users/${userId}/name`).set(userName);
-        if (finalScore > bestEver) db.ref(`users/${userId}/bestScore`).set(finalScore);
-    });
+        // Pokud je čára 2x delší než by měla být, začneme drsně strhávat body
+        if (lengthRatio > 1.5) {
+            let penalty = Math.min(60, (lengthRatio - 1.5) * 40); 
+            finalScore -= penalty;
+        }
 
-    function drawGhost(pts) {
-        let minX = Math.min(...pts.map(p=>p.x)), maxX = Math.max(...pts.map(p=>p.x));
-        let minY = Math.min(...pts.map(p=>p.y)), maxY = Math.max(...pts.map(p=>p.y));
-        let size = Math.max(maxX - minX, maxY - minY, 1);
-        
-        ctx.strokeStyle = 'rgba(255, 0, 255, 0.5)'; ctx.lineWidth = 2; ctx.shadowBlur = 0;
+        finalScore = Math.round(Math.max(0, finalScore));
+
+        // VYKRESLENÍ DUCHA
+        ctx.strokeStyle = 'rgba(255, 0, 255, 0.7)';
+        ctx.lineWidth = 3;
         ctx.beginPath();
         targetShape.forEach((p, i) => {
-            let rx = (p.x - 10) / 80 * size + minX;
-            let ry = (p.y - 10) / 80 * size + minY;
-            if (i === 0) ctx.moveTo(rx, ry); else ctx.lineTo(rx, ry);
+            let rx = ((p.x - 10) / 80) * userSize + minX;
+            let ry = ((p.y - 10) / 80) * userSize + minY;
+            if(i === 0) ctx.moveTo(rx, ry); else ctx.lineTo(rx, ry);
         });
         ctx.stroke();
-    }
 
-    function animateScore(target) {
-        let current = 0;
-        const el = document.getElementById('score-display');
-        el.classList.add('show');
-        const step = target > 50 ? 2 : 1;
-        const interval = setInterval(() => {
-            el.innerText = current + "%";
-            if (current >= target) {
-                clearInterval(interval);
-                el.innerText = target + "%";
-                el.style.textShadow = "0 0 50px #fff, 0 0 20px #ff00ff";
-            }
-            current += step;
-            if (current > target) current = target;
-        }, 20);
-    }
+        animateScore(finalScore);
+
+        // Uložení
+        db.ref(`users/${userId}/history/${todayStr}`).push(finalScore);
+        if(finalScore > bestEver) db.ref(`users/${userId}/bestScore`).set(finalScore);
+
+        setTimeout(() => {
+            ctx.clearRect(0,0,canvas.width, canvas.height);
+            document.getElementById('score-display').classList.remove('show');
+        }, 4000);
+    });
 
     function toggleMenu() { document.getElementById('side-menu').classList.toggle('open'); }
 
