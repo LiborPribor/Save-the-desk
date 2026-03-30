@@ -11,32 +11,23 @@
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #050505; font-family: 'Segoe UI', sans-serif; color: #fff; touch-action: none; }
         canvas#gameCanvas { display: block; position: absolute; top: 0; left: 0; z-index: 1; }
-        
         #ui { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; display: flex; flex-direction: column; justify-content: space-between; padding: 20px; box-sizing: border-box; }
-        
         .glass-panel { background: rgba(15,15,15,0.9); backdrop-filter: blur(15px); border-radius: 12px; border: 1px solid #444; padding: 10px; pointer-events: auto; }
         #top-row { display: flex; gap: 10px; margin-top: env(safe-area-inset-top); }
-        
         #menu-btn { width: 45px; height: 45px; display: flex; align-items: center; justify-content: center; font-size: 24px; cursor: pointer; color: #ff00ff; }
         #stats-bar { flex-grow: 1; display: flex; justify-content: space-around; align-items: center; }
-
         .stat-item { text-align: center; }
         .stat-label { font-size: 8px; color: #888; text-transform: uppercase; }
         .stat-value { font-size: 16px; font-weight: 900; color: #ff00ff; display: block; }
         #lvl-badge { background: #ff00ff; color: #000; padding: 2px 8px; border-radius: 5px; font-size: 10px; font-weight: 900; }
-
         #score-display { font-size: 90px; font-weight: 900; text-align: center; text-shadow: 0 0 30px #ff00ff; opacity: 0; transform: scale(0.8); transition: 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
         #score-display.show { opacity: 1; transform: scale(1); }
-
-        /* Side Menu */
         #side-menu { position: absolute; top: 0; left: -100%; width: 85%; height: 100%; background: #0a0a0a; z-index: 100; transition: 0.3s; padding: 40px 20px; pointer-events: auto; border-right: 1px solid #ff00ff; box-sizing: border-box; overflow-y: auto; }
         #side-menu.open { left: 0; }
         .user-header { font-size: 24px; font-weight: 900; color: #ff00ff; margin-bottom: 5px; }
         .menu-title { color: #888; font-size: 12px; font-weight: bold; border-bottom: 1px solid #333; padding-bottom: 5px; margin-top: 25px; margin-bottom: 10px; text-transform: uppercase; }
         .friend-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #111; font-size: 14px; }
         .btn-invite { background: #00ffcc; color: #000; border: none; padding: 15px; border-radius: 12px; width: 100%; font-weight: bold; margin-top: 20px; cursor: pointer; font-size: 16px; }
-
-        /* Reference Image */
         #reference-box { position: absolute; top: 130px; right: 20px; width: 80px; height: 80px; border: 1px solid #ff00ff; border-radius: 10px; background: rgba(255,0,255,0.05); display: flex; justify-content: center; align-items: center; }
         #refCanvas { width: 65px; height: 65px; }
     </style>
@@ -69,7 +60,6 @@
 </div>
 
 <script>
-    // 1. CONFIGURATION & FIREBASE
     const firebaseConfig = {
         apiKey: "AIzaSyCnGuV53ZyxO1qU7G6zsVFqWuKPSndn_bQ",
         authDomain: "neon-desk.firebaseapp.com",
@@ -82,14 +72,13 @@
 
     const userId = localStorage.getItem('neon_uid') || 'u_' + Math.random().toString(36).substr(2, 9);
     localStorage.setItem('neon_uid', userId);
-    let userName = localStorage.getItem('neon_name') || prompt("Tvé jméno:") || "Hráč";
+    let userName = localStorage.getItem('neon_name') || prompt("Tvé jméno:") || "Tester";
     localStorage.setItem('neon_name', userName);
     document.getElementById('menu-user-name').innerText = userName;
 
     const todayStr = new Date().toISOString().split('T')[0];
     let bestEver = 0;
 
-    // 2. DATA SYNC
     db.ref(`users/${userId}`).on('value', snap => {
         const data = snap.val() || {};
         bestEver = data.bestScore || 0;
@@ -107,125 +96,100 @@
         }
     });
 
-    // 3. GAME LOGIC
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
     const targetShape = [{x:50,y:10},{x:85,y:40},{x:50,y:55},{x:15,y:70},{x:50,y:95},{x:85,y:70},{x:50,y:55},{x:15,y:40},{x:50,y:10}];
     
     let playerTrace = [], isDrawing = false;
-    let startTime = 0, lastFinishTime = 0;
+    let strokeTimer = null;
 
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
 
     canvas.addEventListener('touchstart', e => {
-        if (Date.now() - lastFinishTime < 1000) return; // Debounce
-        isDrawing = true;
-        startTime = Date.now();
-        playerTrace = [{x: e.touches[0].clientX, y: e.touches[0].clientY}];
-        ctx.clearRect(0,0,canvas.width, canvas.height);
-        document.getElementById('score-display').classList.remove('show');
+        if (strokeTimer) clearTimeout(strokeTimer);
+        if (!isDrawing) {
+            isDrawing = true;
+            playerTrace = [];
+            ctx.clearRect(0,0,canvas.width, canvas.height);
+            document.getElementById('score-display').classList.remove('show');
+        }
+        playerTrace.push({x: e.touches[0].clientX, y: e.touches[0].clientY});
     });
 
     canvas.addEventListener('touchmove', e => {
         if (!isDrawing) return;
         const t = e.touches[0];
         const last = playerTrace[playerTrace.length-1];
-        
-        ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 3;
-        ctx.shadowBlur = 15;
-        ctx.shadowColor = '#ff00ff';
-        ctx.lineCap = 'round';
-        ctx.beginPath();
-        ctx.moveTo(last.x, last.y);
-        ctx.lineTo(t.clientX, t.clientY);
-        ctx.stroke();
-        
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.shadowBlur = 15; ctx.shadowColor = '#ff00ff'; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(last.x, last.y); ctx.lineTo(t.clientX, t.clientY); ctx.stroke();
         playerTrace.push({x: t.clientX, y: t.clientY});
     });
 
     canvas.addEventListener('touchend', () => {
-        const duration = Date.now() - startTime;
-        if (!isDrawing || playerTrace.length < 20 || duration < 400) {
-            isDrawing = false;
-            return;
-        }
-        isDrawing = false;
-        lastFinishTime = Date.now();
+        strokeTimer = setTimeout(evaluateDraw, 180); // Počkáme 180ms na případné pokračování tahu
+    });
 
-        // --- VÝPOČET ---
+    function evaluateDraw() {
+        if (!isDrawing || playerTrace.length < 30) { isDrawing = false; return; }
+        isDrawing = false;
+
         let minX = Math.min(...playerTrace.map(p=>p.x)), maxX = Math.max(...playerTrace.map(p=>p.x));
         let minY = Math.min(...playerTrace.map(p=>p.y)), maxY = Math.max(...playerTrace.map(p=>p.y));
         let userW = maxX - minX, userH = maxY - minY;
-        let centerX = minX + userW/2, centerY = minY + userH/2;
+        let cX = minX + userW/2, cY = minY + userH/2;
         let size = Math.max(userW, userH, 50);
 
-        // Normalizace na střed 50,50
         const normPlayer = playerTrace.map(p => ({
-            x: ((p.x - centerX) / size) * 80 + 50,
-            y: ((p.y - centerY) / size) * 80 + 50
+            x: ((p.x - cX) / size) * 80 + 50,
+            y: ((p.y - cY) / size) * 80 + 50
         }));
 
-        // 1. Shoda (Prostorová)
-        let totalDist = 0;
-        normPlayer.forEach(p => {
+        // PŘÍSNÁ KONTROLA (Reverse matching)
+        let totalTargetDist = 0;
+        targetShape.forEach(t => {
             let minDist = Infinity;
-            targetShape.forEach(t => {
+            normPlayer.forEach(p => {
                 let d = Math.hypot(p.x - t.x, p.y - t.y);
                 if (d < minDist) minDist = d;
             });
-            totalDist += minDist;
+            totalTargetDist += minDist;
         });
-        let precision = Math.max(0, 100 - (totalDist / normPlayer.length) * 9);
 
-        // 2. Pokrytí (Zóny)
-        let hits = 0;
-        const zones = 12;
-        for(let i=0; i<zones; i++) {
-            let tP = targetShape[Math.floor((i/(zones-1))*(targetShape.length-1))];
-            if(normPlayer.some(p => Math.hypot(p.x - tP.x, p.y - tP.y) < 18)) hits++;
-        }
-        let coverage = (hits/zones) * 100;
+        let avgDist = totalTargetDist / targetShape.length;
+        let finalScore = Math.round(Math.max(0, 100 - (avgDist * 7)));
 
-        // 3. Délka (Anti-scribble)
+        // ANTI-SCRIBBLE
         let pLen = 0;
         for(let i=1; i<playerTrace.length; i++) pLen += Math.hypot(playerTrace[i].x-playerTrace[i-1].x, playerTrace[i].y-playerTrace[i-1].y);
-        let tLen = size * 4;
-        let penalty = pLen > tLen * 2.2 ? Math.min(60, (pLen/tLen - 2.2) * 30) : 0;
+        let tLen = size * 3.8;
+        if (pLen > tLen * 1.7) {
+            finalScore -= Math.round(((pLen / tLen) - 1.7) * 35);
+        }
+        finalScore = Math.max(0, finalScore);
 
-        let finalScore = Math.round(Math.max(0, (precision * 0.4 + coverage * 0.6) - penalty));
-
-        // --- VIZUALIZACE ---
-        // Vykreslení "ducha" předlohy
-        ctx.shadowBlur = 0;
-        ctx.strokeStyle = 'rgba(255, 0, 255, 0.8)';
-        ctx.setLineDash([5, 8]);
-        ctx.lineWidth = 2;
+        // VYKRESLENÍ DUCHA
+        ctx.shadowBlur = 0; ctx.strokeStyle = 'rgba(255, 0, 255, 0.8)'; ctx.setLineDash([5, 5]); ctx.lineWidth = 2;
         ctx.beginPath();
         targetShape.forEach((p, i) => {
-            let rx = ((p.x - 50) / 80) * size + centerX;
-            let ry = ((p.y - 50) / 80) * size + centerY;
+            let rx = ((p.x - 50) / 80) * size + cX;
+            let ry = ((p.y - 50) / 80) * size + cY;
             if(i===0) ctx.moveTo(rx, ry); else ctx.lineTo(rx, ry);
         });
-        ctx.stroke();
-        ctx.setLineDash([]);
+        ctx.stroke(); ctx.setLineDash([]);
 
         animateScore(finalScore);
 
-        // Uložit do Firebase
         db.ref(`users/${userId}/history/${todayStr}`).push(finalScore);
-        db.ref(`users/${userId}/name`).set(userName);
         if(finalScore > bestEver) db.ref(`users/${userId}/bestScore`).set(finalScore);
 
-        // Auto-clear
         setTimeout(() => {
             if(!isDrawing) {
                 ctx.clearRect(0,0,canvas.width, canvas.height);
                 document.getElementById('score-display').classList.remove('show');
             }
-        }, 3500);
-    });
+        }, 3000);
+    }
 
     function animateScore(target) {
         let curr = 0;
@@ -235,11 +199,10 @@
             el.innerText = curr + "%";
             if(curr >= target) clearInterval(itv);
             curr++;
-        }, 20);
+        }, 15);
     }
 
     function toggleMenu() { document.getElementById('side-menu').classList.toggle('open'); }
-    
     function drawRef() {
         const r = document.getElementById('refCanvas').getContext('2d');
         r.clearRect(0,0,200,200); r.strokeStyle='#ff00ff'; r.lineWidth=12; r.lineCap='round'; r.lineJoin='round';
@@ -250,11 +213,8 @@
 
     async function shareGame() {
         const url = window.location.origin + window.location.pathname + "?ref=" + userId;
-        if(navigator.share) {
-            navigator.share({title:'NEON KNOT', text:'Dáš víc než '+bestEver+'%?', url:url});
-        } else {
-            navigator.clipboard.writeText(url); alert("Odkaz zkopírován!");
-        }
+        if(navigator.share) { navigator.share({title:'NEON KNOT', text:'Zkus mě trumfnout!', url:url}); }
+        else { navigator.clipboard.writeText(url); alert("Zkopírováno!"); }
     }
 
     window.addEventListener('resize', () => {
