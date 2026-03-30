@@ -2,7 +2,7 @@
 <html lang="cs">
 <head>
     <meta charset="UTF-8">
-    <title>NEON KNOT - FINAL PRECISION</title>
+    <title>NEON KNOT - BALANCED EDITION</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
@@ -36,7 +36,7 @@
 
 <div id="side-menu">
     <div style="text-align:right; font-size:28px;" onclick="toggleMenu()">✕</div>
-    <div class="user-header" id="menu-user-name">...</div>
+    <div class="user-header" id="menu-user-name">Hráč</div>
     <div id="friends-list" style="margin-top:20px;"></div>
     <button class="btn-invite" onclick="shareGame()">📤 POZVAT KAMARÁDA</button>
 </div>
@@ -55,7 +55,6 @@
 </div>
 
 <script>
-    // --- FIREBASE CONFIG ---
     const firebaseConfig = {
         apiKey: "AIzaSyCnGuV53ZyxO1qU7G6zsVFqWuKPSndn_bQ",
         authDomain: "neon-desk.firebaseapp.com",
@@ -68,10 +67,8 @@
 
     const userId = localStorage.getItem('neon_uid') || 'u_' + Math.random().toString(36).substr(2, 9);
     localStorage.setItem('neon_uid', userId);
-    let userName = localStorage.getItem('neon_name') || "Hráč";
-    document.getElementById('menu-user-name').innerText = userName;
-
     let bestEver = 0;
+
     db.ref(`users/${userId}`).on('value', snap => {
         const data = snap.val() || {};
         bestEver = data.bestScore || 0;
@@ -79,7 +76,6 @@
         document.getElementById('lvl-badge').innerText = "LVL " + (Math.floor(bestEver / 10) + 1);
     });
 
-    // --- HERNÍ LOGIKA ---
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
     const targetShape = [{x:50,y:10},{x:85,y:40},{x:50,y:55},{x:15,y:70},{x:50,y:95},{x:85,y:70},{x:50,y:55},{x:15,y:40},{x:50,y:10}];
@@ -102,7 +98,7 @@
         if (!isDrawing) return;
         const t = e.touches[0];
         const last = playerTrace[playerTrace.length-1];
-        ctx.strokeStyle = '#fff'; ctx.lineWidth = 4; ctx.shadowBlur = 12; ctx.shadowColor = '#ff00ff'; ctx.lineCap = 'round';
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 4; ctx.shadowBlur = 15; ctx.shadowColor = '#ff00ff'; ctx.lineCap = 'round';
         ctx.beginPath(); ctx.moveTo(last.x, last.y); ctx.lineTo(t.clientX, t.clientY); ctx.stroke();
         playerTrace.push({x: t.clientX, y: t.clientY});
     });
@@ -118,60 +114,65 @@
         let minX = Math.min(...playerTrace.map(p=>p.x)), maxX = Math.max(...playerTrace.map(p=>p.x));
         let minY = Math.min(...playerTrace.map(p=>p.y)), maxY = Math.max(...playerTrace.map(p=>p.y));
         let userW = maxX - minX, userH = maxY - minY;
+        let userCX = minX + userW/2, userCY = minY + userH/2;
         let size = Math.max(userW, userH, 50);
-        let cX = minX + userW/2, cY = minY + userH/2;
 
+        // Normalizace a Brutální Centrování na střed předlohy (50,50)
         const normPlayer = playerTrace.map(p => ({
-            x: ((p.x - cX) / size) * 80 + 50,
-            y: ((p.y - cY) / size) * 80 + 50
+            x: ((p.x - userCX) / size) * 80 + 50,
+            y: ((p.y - userCY) / size) * 80 + 50
         }));
 
-        // 1. CHECKPOINTY (8 klíčových bodů diamantu)
-        const checkpoints = [{x:50,y:10}, {x:85,y:40}, {x:50,y:55}, {x:15,y:70}, {x:50,y:95}, {x:85,y:70}, {x:15,y:40}];
-        let hitCount = 0;
-        checkpoints.forEach(cp => {
-            if (normPlayer.some(p => Math.hypot(p.x - cp.x, p.y - cp.y) < 15)) hitCount++;
+        // --- ANTI-ŠKRABANICE FILTR (Hustota) ---
+        let scribbleMultiplier = 1.0;
+        const grid = {}; const gridSize = 10;
+        normPlayer.forEach(p => {
+            const gk = Math.floor(p.x/gridSize) + '_' + Math.floor(p.y/gridSize);
+            grid[gk] = (grid[gk] || 0) + 1;
         });
+        // Pokud je v jedné zóně mřížky víc než 15 bodů (vrstvení), skóre letí dolů
+        let maxDensity = Math.max(...Object.values(grid), 0);
+        if (maxDensity > 15) scribbleMultiplier = Math.max(0, 1.0 - (maxDensity - 15) * 0.05);
 
-        // 2. VÝPOČET PŘESNOSTI (Geometrický stín)
-        let totalDist = 0;
-        targetShape.forEach(t => {
+        // --- VÝPOČET GEOMETRIE (Změna logiky) ---
+        let distances = targetShape.map(t => {
             let minDist = Math.min(...normPlayer.map(p => Math.hypot(p.x - t.x, p.y - t.y)));
-            totalDist += minDist;
+            return minDist;
         });
-        let accuracy = Math.max(0, 100 - (totalDist / targetShape.length) * 8.5);
+        
+        // Seřadíme vzdálenosti - pokud je i ta nejhorší velká, skóre klesne
+        distances.sort((a, b) => a - b);
+        let medianDist = distances[Math.floor(distances.length * 0.7)]; // Bereme 70% nejhorší bod
+        let finalScore = Math.round(Math.max(0, 100 - (medianDist * 8.5)));
 
-        // 3. PENALIZACE ZA ŠUDLÁNÍ (Celková délka čáry)
-        let pLen = 0;
-        for(let i=1; i<playerTrace.length; i++) pLen += Math.hypot(playerTrace[i].x-playerTrace[i-1].x, playerTrace[i].y-playerTrace[i-1].y);
-        let tLen = size * 3.8; 
-        
-        let finalScore = accuracy;
-        if (hitCount < 5) finalScore *= 0.2; // Pokud mineš rohy, drastický pád
-        
-        if (pLen > tLen * 1.8) {
-            let penalty = (pLen / tLen - 1.8) * 45;
-            finalScore -= penalty;
+        // --- ZÓNY POKRYTÍ ---
+        const coverageZones = 40; let hits = 0;
+        for(let i=0; i<targetShape.length-1; i++) {
+            for(let j=0; j<1; j+= 1/(coverageZones/targetShape.length)) {
+                let tx = targetShape[i].x + (targetShape[i+1].x - targetShape[i].x) * j;
+                let ty = targetShape[i].y + (targetShape[i+1].y - targetShape[i].y) * j;
+                if(normPlayer.some(p => Math.hypot(p.x - tx, p.y - ty) < 15)) hits++;
+            }
         }
+        let coveragePercent = (hits / coverageZones) * 100;
+        if (coveragePercent < 75) finalScore *= (coveragePercent/75); // Trest za kruhy
 
-        finalScore = Math.round(Math.max(0, finalScore));
+        // --- FINAL BLAANCE ---
+        finalScore = Math.round(Math.max(0, finalScore * scribbleMultiplier));
 
-        // Zobrazení "ducha" nákresu pro kontrolu
-        ctx.setLineDash([5, 5]); ctx.strokeStyle = 'rgba(255, 0, 255, 0.7)'; ctx.lineWidth = 2; ctx.shadowBlur = 0;
+        // Vykreslení "ducha" nákresu
+        ctx.setLineDash([5, 5]); ctx.strokeStyle = 'rgba(255, 0, 255, 0.6)'; ctx.lineWidth = 2; ctx.shadowBlur = 0;
         ctx.beginPath();
         targetShape.forEach((p, i) => {
-            let rx = ((p.x - 50) / 80) * size + cX;
-            let ry = ((p.y - 50) / 80) * size + cY;
+            let rx = ((p.x - 50) / 80) * size + userCX;
+            let ry = ((p.y - 50) / 80) * size + userCY;
             if(i===0) ctx.moveTo(rx, ry); else ctx.lineTo(rx, ry);
         });
         ctx.stroke(); ctx.setLineDash([]);
 
         animateScore(finalScore);
 
-        if(finalScore > bestEver) {
-            bestEver = finalScore;
-            db.ref(`users/${userId}/bestScore`).set(finalScore);
-        }
+        if(finalScore > bestEver) db.ref(`users/${userId}/bestScore`).set(finalScore);
     }
 
     function animateScore(target) {
@@ -194,7 +195,7 @@
     drawRef();
     window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; drawRef(); });
 
-    function shareGame() {
+    async function shareGame() {
         const url = window.location.origin + window.location.pathname + "?ref=" + userId;
         if(navigator.share) { navigator.share({title:'NEON KNOT', text:'Dáš víc než '+bestEver+'%?', url:url}); }
         else { navigator.clipboard.writeText(url); alert("Odkaz zkopírován!"); }
