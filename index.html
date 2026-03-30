@@ -1,33 +1,52 @@
-<!DOCTYPE html>
-<html lang="cs">
-<head>
-    <meta charset="UTF-8">
-    <title>NEON KNOT - PRO EDITION</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+<title>NEON KNOT - PRO</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 
-    <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #050505; font-family: 'Segoe UI', sans-serif; color: #fff; touch-action: none; }
-        canvas#gameCanvas { display: block; position: absolute; top: 0; left: 0; z-index: 1; }
-        #ui { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; display: flex; flex-direction: column; justify-content: space-between; padding: 20px; box-sizing: border-box; }
-        .glass-panel { background: rgba(15,15,15,0.9); backdrop-filter: blur(15px); border-radius: 12px; border: 1px solid #444; padding: 10px; pointer-events: auto; }
-        #top-row { display: flex; gap: 10px; margin-top: env(safe-area-inset-top); }
-        #menu-btn { width: 45px; height: 45px; display: flex; align-items: center; justify-content: center; font-size: 24px; cursor: pointer; color: #ff00ff; }
-        #stats-bar { flex-grow: 1; display: flex; justify-content: space-around; align-items: center; }
-        .stat-item { text-align: center; }
-        .stat-label { font-size: 8px; color: #888; text-transform: uppercase; }
-        .stat-value { font-size: 16px; font-weight: 900; color: #ff00ff; display: block; }
-        #lvl-badge { background: #ff00ff; color: #000; padding: 2px 8px; border-radius: 5px; font-size: 10px; font-weight: 900; }
-        #score-display { font-size: 90px; font-weight: 900; text-align: center; text-shadow: 0 0 30px #ff00ff; opacity: 0; transform: scale(0.8); transition: 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+
+<style>
+body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #050505; font-family: 'Segoe UI', sans-serif; color: #fff; touch-action: none; }
+canvas#gameCanvas { display: block; position: absolute; top: 0; left: 0; z-index: 1; }
+        
+#ui { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; display: flex; flex-direction: column; justify-content: space-between; padding: 20px; box-sizing: border-box; }
+
+        /* Horní lišta */
+.glass-panel { background: rgba(15,15,15,0.9); backdrop-filter: blur(15px); border-radius: 12px; border: 1px solid #444; padding: 10px; pointer-events: auto; }
+#top-row { display: flex; gap: 10px; margin-top: env(safe-area-inset-top); }
+#menu-btn { width: 45px; height: 45px; display: flex; align-items: center; justify-content: center; font-size: 24px; cursor: pointer; color: #ff00ff; }
+@@ -24,57 +21,52 @@
+.stat-item { text-align: center; }
+.stat-label { font-size: 8px; color: #888; text-transform: uppercase; }
+.stat-value { font-size: 16px; font-weight: 900; color: #ff00ff; display: block; }
+
+        /* Level Badge */
+#lvl-badge { background: #ff00ff; color: #000; padding: 2px 8px; border-radius: 5px; font-size: 10px; font-weight: 900; }
+
+        /* Score */
+        #score-display { font-size: 90px; font-weight: 900; text-align: center; text-shadow: 0 0 30px #ff00ff; opacity: 0; transition: 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); transform: scale(0.5); }
         #score-display.show { opacity: 1; transform: scale(1); }
-        #side-menu { position: absolute; top: 0; left: -100%; width: 85%; height: 100%; background: #0a0a0a; z-index: 100; transition: 0.3s; padding: 40px 20px; pointer-events: auto; border-right: 1px solid #ff00ff; box-sizing: border-box; }
-        #side-menu.open { left: 0; }
-        .user-header { font-size: 24px; font-weight: 900; color: #ff00ff; }
-        #reference-box { position: absolute; top: 130px; right: 20px; width: 80px; height: 80px; border: 1px solid #ff00ff; border-radius: 10px; background: rgba(255,0,255,0.05); display: flex; justify-content: center; align-items: center; }
-        #refCanvas { width: 65px; height: 65px; }
-    </style>
+        #score-display { font-size: 90px; font-weight: 900; text-align: center; text-shadow: 0 0 30px #ff00ff; opacity: 0; transition: 0.4s; }
+        #score-display.show { opacity: 1; transform: scale(1.1); }
+
+        /* Boční Menu */
+#side-menu { position: absolute; top: 0; left: -100%; width: 85%; height: 100%; background: #0a0a0a; z-index: 100; transition: 0.3s; padding: 40px 20px; pointer-events: auto; border-right: 1px solid #ff00ff; box-sizing: border-box; }
+#side-menu.open { left: 0; }
+        .menu-title { color: #ff00ff; font-weight: bold; border-bottom: 1px solid #333; padding-bottom: 5px; margin-bottom: 15px; margin-top: 20px; }
+        .user-header { font-size: 24px; font-weight: 900; color: #ff00ff; margin-bottom: 5px; }
+        .menu-title { color: #888; font-size: 12px; font-weight: bold; border-bottom: 1px solid #333; padding-bottom: 5px; margin-top: 25px; margin-bottom: 10px; text-transform: uppercase; }
+.friend-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #111; font-size: 14px; }
+        .help-text { font-size: 13px; color: #ccc; line-height: 1.5; }
+
+        
+#overlay-msg { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; width: 80%; pointer-events: auto; }
+        .btn-invite { background: #00ffcc; color: #000; border: none; padding: 12px; border-radius: 8px; width: 100%; font-weight: bold; margin-top: 20px; cursor: pointer; }
+        .btn-invite { background: #00ffcc; color: #000; border: none; padding: 15px; border-radius: 12px; width: 100%; font-weight: bold; margin-top: 20px; cursor: pointer; font-size: 16px; box-shadow: 0 0 15px rgba(0,255,204,0.3); }
+
+#reference-box { position: absolute; top: 130px; right: 20px; width: 80px; height: 80px; border: 1px solid #ff00ff; border-radius: 10px; background: rgba(255,0,255,0.05); display: flex; justify-content: center; align-items: center; }
+#refCanvas { width: 65px; height: 65px; }
+        #chart-container { width: 100%; height: 80px; margin-bottom: env(safe-area-inset-bottom); }
+</style>
 </head>
 <body>
 
@@ -35,168 +54,138 @@
 
 <div id="side-menu">
     <div style="text-align:right; font-size:28px;" onclick="toggleMenu()">✕</div>
+    <div style="text-align:right; font-size:28px; margin-bottom: 10px;" onclick="toggleMenu()">✕</div>
+
+    <div class="stat-label">Přihlášen jako:</div>
     <div class="user-header" id="menu-user-name">...</div>
-    <div id="friends-list" style="margin-top:20px;"></div>
+
+<div class="menu-title">ŽEBŘÍČEK KAMARÁDŮ</div>
+    <div id="friends-list">
+        <div style="color:#666; font-size:12px;">Zatím zde nikdo není. Pozvi kamarády!</div>
+    </div>
+    <div id="friends-list"><div style="color:#666; font-size:12px;">Pozvi někoho a uvidíš jeho skóre...</div></div>
+
+    <div class="menu-title">JAK HRÁT</div>
+    <div class="help-text">
+        • Máš <b>1 tah denně</b>.<br>
+        • Za každého kamaráda, který dnes zahraje, získáš <b>+1 bonusový tah</b>.<br>
+        • Každých 10% přesnosti ti zvýší tvůj <b>Level</b>.<br>
+        • Snaž se co nejpřesněji trefit uzel v náhledu.
+    <div class="menu-title">PRAVIDLA</div>
+    <div style="font-size:13px; color:#ccc; line-height: 1.6;">
+        • 1 tah denně (reset o půlnoci).<br>
+        • Každý aktivní kamarád = <b>tah navíc</b>.<br>
+        • Přesnost určuje tvůj Level.
+</div>
+
+    <button class="btn-invite" onclick="inviteFriend()">🔗 POZVAT KAMARÁDA</button>
+    <button class="btn-invite" onclick="shareGame()">📤 POZVAT A SDÍLET</button>
 </div>
 
 <div id="ui">
-    <div id="top-row">
-        <div id="menu-btn" class="glass-panel" onclick="toggleMenu()">☰</div>
-        <div id="stats-bar" class="glass-panel">
+<div id="top-row">
+<div id="menu-btn" class="glass-panel" onclick="toggleMenu()">☰</div>
+<div id="stats-bar" class="glass-panel">
+            <div class="stat-item"><span class="stat-label">Best Celkem</span><span id="all-time-best" class="stat-value">0%</span></div>
             <div class="stat-item"><span class="stat-label">Best</span><span id="all-time-best" class="stat-value">0%</span></div>
-            <div class="stat-item"><span id="lvl-badge">LVL 1</span></div>
-            <div class="stat-item"><span class="stat-label">Tahy</span><span class="stat-value">∞</span></div>
-        </div>
-    </div>
-    <div id="score-display">0%</div>
-    <div id="reference-box"><canvas id="refCanvas" width="200" height="200"></canvas></div>
+<div class="stat-item"><span id="lvl-badge">LVL 1</span></div>
+<div class="stat-item"><span class="stat-label">Tahy</span><span id="attempts-left" class="stat-value">1/1</span></div>
+</div>
+@@ -83,12 +75,13 @@
+<div id="score-display">0%</div>
+
+<div id="overlay-msg" style="display:none;">
+        <h2 id="msg-text" style="margin:0;">Limit vyčerpán</h2>
+        <p id="msg-sub" style="font-size:12px; color:#888;">Počkej na tahy od kamarádů nebo na zítřek.</p>
+        <h2 style="margin:0; color:#ff0055;">LIMIT VYČERPÁN</h2>
+        <p style="font-size:12px; color:#888;">Nové tahy získáš od kamarádů nebo zítra.</p>
+        <button class="btn-invite" style="width: auto; padding: 10px 30px;" onclick="shareGame()">ZÍSKAT TAH</button>
+</div>
+
+<div id="reference-box"><canvas id="refCanvas" width="200" height="200"></canvas></div>
+    <div id="chart-container" class="glass-panel"><canvas id="progressChart"></canvas></div>
+    <div style="height:60px;"></div>
 </div>
 
 <script>
-    // --- KONFIGURACE ---
-    const firebaseConfig = {
-        apiKey: "AIzaSyCnGuV53ZyxO1qU7G6zsVFqWuKPSndn_bQ",
-        authDomain: "neon-desk.firebaseapp.com",
-        databaseURL: "https://neon-desk-default-rtdb.europe-west1.firebasedatabase.app",
-        projectId: "neon-desk",
-        appId: "1:721167653862:web:36ca5e1022e348896c5427"
-    };
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
-
-    const userId = localStorage.getItem('neon_uid') || 'u_' + Math.random().toString(36).substr(2, 9);
-    localStorage.setItem('neon_uid', userId);
-    let userName = localStorage.getItem('neon_name') || prompt("Jméno:") || "Hráč";
-    localStorage.setItem('neon_name', userName);
+@@ -106,6 +99,7 @@ <h2 id="msg-text" style="margin:0;">Limit vyčerpán</h2>
+localStorage.setItem('neon_uid', userId);
+let userName = localStorage.getItem('neon_name') || prompt("Tvé jméno:") || "Hráč";
+localStorage.setItem('neon_name', userName);
     document.getElementById('menu-user-name').innerText = userName;
 
-    let bestEver = 0;
-    db.ref(`users/${userId}`).on('value', snap => {
-        const data = snap.val() || {};
-        bestEver = data.bestScore || 0;
-        document.getElementById('all-time-best').innerText = bestEver + "%";
-    });
+const todayStr = new Date().toISOString().split('T')[0];
+let attemptsUsed = 0, bonusAttempts = 0, bestEver = 0;
+@@ -120,7 +114,6 @@ <h2 id="msg-text" style="margin:0;">Limit vyčerpán</h2>
+const data = snap.val() || {};
+bestEver = data.bestScore || 0;
+attemptsUsed = (data.history && data.history[todayStr]) ? Object.keys(data.history[todayStr]).length : 0;
+        
+document.getElementById('all-time-best').innerText = bestEver + "%";
+document.getElementById('lvl-badge').innerText = "LVL " + (Math.floor(bestEver / 10) + 1);
 
-    const canvas = document.getElementById('gameCanvas');
-    const ctx = canvas.getContext('2d');
-    const targetShape = [{x:50,y:10},{x:85,y:40},{x:50,y:55},{x:15,y:70},{x:50,y:95},{x:85,y:70},{x:50,y:55},{x:15,y:40},{x:50,y:10}];
-    
-    let playerTrace = [], isDrawing = false, strokeTimer = null;
-    canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+@@ -148,29 +141,36 @@ <h2 id="msg-text" style="margin:0;">Limit vyčerpán</h2>
 
-    // --- POMOCNÉ FUNKCE ---
-    function distToSegment(p, v, w) {
-        let l2 = Math.hypot(v.x - w.x, v.y - w.y) ** 2;
-        if (l2 === 0) return Math.hypot(p.x - v.x, p.y - v.y);
-        let t = ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / l2;
-        t = Math.max(0, Math.min(1, t));
-        return Math.hypot(p.x - (v.x + t * (w.x - v.x)), p.y - (v.y + t * (w.y - v.y)));
-    }
+function toggleMenu() { document.getElementById('side-menu').classList.toggle('open'); }
 
-    canvas.addEventListener('touchstart', e => {
-        if (strokeTimer) clearTimeout(strokeTimer);
-        if (!isDrawing) {
-            ctx.clearRect(0,0,canvas.width, canvas.height);
-            document.getElementById('score-display').classList.remove('show');
-            playerTrace = [];
+    function inviteFriend() {
+        const link = window.location.origin + window.location.pathname + "?ref=" + userId;
+        navigator.clipboard.writeText(link);
+        alert("Odkaz zkopírován! Pošli ho kamarádům.");
+    async function shareGame() {
+        const shareData = {
+            title: 'NEON KNOT',
+            text: `Zkus porazit můj rekord ${bestEver}% v Neon Knot!`,
+            url: window.location.origin + window.location.pathname + "?ref=" + userId
+        };
+        try {
+            await navigator.share(shareData);
+        } catch (err) {
+            // Fallback pro PC
+            navigator.clipboard.writeText(shareData.url);
+            alert("Odkaz zkopírován do schránky!");
         }
+}
+
+    // --- HERNÍ LOGIKA ---
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const targetShape = [{x:50,y:10},{x:80,y:40},{x:50,y:50},{x:20,y:60},{x:50,y:90},{x:80,y:60},{x:50,y:50},{x:20,y:40},{x:50,y:10}];
+let playerTrace = [], isDrawing = false;
+
+canvas.addEventListener('touchstart', e => {
+if (attemptsUsed >= (1 + bonusAttempts)) return;
         isDrawing = true;
-        playerTrace.push({x: e.touches[0].clientX, y: e.touches[0].clientY});
-    });
+        playerTrace = [{x:e.touches[0].clientX, y:e.touches[0].clientY}];
+        isDrawing = true; playerTrace = [{x:e.touches[0].clientX, y:e.touches[0].clientY}];
+ctx.clearRect(0,0,canvas.width, canvas.height);
+}, {passive:false});
 
-    canvas.addEventListener('touchmove', e => {
-        if (!isDrawing) return;
-        const t = e.touches[0];
-        const last = playerTrace[playerTrace.length-1];
-        ctx.strokeStyle = '#fff'; ctx.lineWidth = 4; ctx.shadowBlur = 15; ctx.shadowColor = '#ff00ff'; ctx.lineCap = 'round';
-        ctx.beginPath(); ctx.moveTo(last.x, last.y); ctx.lineTo(t.clientX, t.clientY); ctx.stroke();
-        playerTrace.push({x: t.clientX, y: t.clientY});
-    });
+canvas.addEventListener('touchmove', e => {
+if (!isDrawing) return;
+const t = e.touches[0];
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 2.5; // ZÚŽENÁ LINKA
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 2.5; 
+ctx.shadowBlur = 10; ctx.shadowColor = '#ff00ff'; ctx.lineCap = 'round';
+ctx.beginPath();
+ctx.moveTo(playerTrace[playerTrace.length-1].x, playerTrace[playerTrace.length-1].y);
+@@ -188,17 +188,16 @@ <h2 id="msg-text" style="margin:0;">Limit vyčerpán</h2>
+let t = targetShape[Math.floor((i/(samples-1))*(targetShape.length-1))];
+diff += Math.hypot(p.x - t.x, p.y - t.y);
+}
+        let score = Math.round(Math.max(0, 100 - (diff/samples)*2.8));
+        // UPRAVENÁ TOLERANCE (2.4 místo 2.8) - méně přísné
+        let score = Math.round(Math.max(0, 100 - (diff/samples)*2.4));
 
-    canvas.addEventListener('touchend', () => {
-        strokeTimer = setTimeout(evaluateDraw, 250);
-    });
+db.ref(`users/${userId}/history/${todayStr}`).push(score);
+db.ref(`users/${userId}/lastPlayed`).set(todayStr);
+db.ref(`users/${userId}/name`).set(userName);
+if(score > bestEver) db.ref(`users/${userId}/bestScore`).set(score);
 
-    function evaluateDraw() {
-        if (!isDrawing || playerTrace.length < 15) { isDrawing = false; return; }
-        isDrawing = false;
-
-        let minX = Math.min(...playerTrace.map(p=>p.x)), maxX = Math.max(...playerTrace.map(p=>p.x));
-        let minY = Math.min(...playerTrace.map(p=>p.y)), maxY = Math.max(...playerTrace.map(p=>p.y));
-        let size = Math.max(maxX - minX, maxY - minY, 50);
-        let cX = minX + (maxX-minX)/2, cY = minY + (maxY-minY)/2;
-
-        const normPlayer = playerTrace.map(p => ({
-            x: ((p.x - cX) / size) * 80 + 50,
-            y: ((p.y - cY) / size) * 80 + 50
-        }));
-
-        // VEKTOROVÁ KONTROLA ÚSEČEK
-        let segmentScores = [];
-        for (let i = 0; i < targetShape.length - 1; i++) {
-            let p1 = targetShape[i], p2 = targetShape[i+1];
-            let closePoints = normPlayer.filter(p => distToSegment(p, p1, p2) < 12);
-            
-            if (closePoints.length < 2) {
-                segmentScores.push(0);
-            } else {
-                let hasStart = closePoints.some(p => Math.hypot(p.x - p1.x, p.y - p1.y) < 22);
-                let hasEnd = closePoints.some(p => Math.hypot(p.x - p2.x, p.y - p2.y) < 22);
-                segmentScores.push(hasStart && hasEnd ? 100 : 20);
-            }
-        }
-
-        let baseScore = segmentScores.reduce((a,b)=>a+b, 0) / segmentScores.length;
-
-        // PENALIZACE ZA ODPAD (Knedlík/Kolečko filtr)
-        let wastePoints = 0;
-        normPlayer.forEach(p => {
-            let minDist = Infinity;
-            for (let i=0; i<targetShape.length-1; i++) {
-                let d = distToSegment(p, targetShape[i], targetShape[i+1]);
-                if (d < minDist) minDist = d;
-            }
-            if (minDist > 14) wastePoints++;
-        });
-
-        let wasteRatio = wastePoints / normPlayer.length;
-        // Brutální srážka: Pokud je víc než 30 % bodů mimo čáry, skóre letí k nule
-        let finalScore = baseScore * Math.max(0, (1 - wasteRatio * 2.5));
-
-        finalScore = Math.round(Math.max(0, finalScore));
-
-        // DUCH
-        ctx.setLineDash([5, 5]); ctx.strokeStyle = 'rgba(255,0,255,0.5)'; ctx.lineWidth = 2; ctx.shadowBlur = 0;
-        ctx.beginPath();
-        targetShape.forEach((p, i) => {
-            let rx = ((p.x-50)/80)*size + cX, ry = ((p.y-50)/80)*size + cY;
-            if(i===0) ctx.moveTo(rx, ry); else ctx.lineTo(rx, ry);
-        });
-        ctx.stroke(); ctx.setLineDash([]);
-
-        animateScore(finalScore);
-        if(finalScore > bestEver) db.ref(`users/${userId}/bestScore`).set(finalScore);
-    }
-
-    function animateScore(target) {
-        let curr = 0; const el = document.getElementById('score-display');
+const el = document.getElementById('score-display');
+        el.innerText = score + "%";
+        el.style.color = score > 80 ? '#00ffcc' : '#ff0055';
         el.classList.add('show');
-        const itv = setInterval(() => {
-            el.innerText = curr + "%";
-            if(curr >= target) clearInterval(itv);
-            curr++;
-        }, 15);
-    }
-
-    function toggleMenu() { document.getElementById('side-menu').classList.toggle('open'); }
-    function drawRef() {
-        const r = document.getElementById('refCanvas').getContext('2d');
-        r.clearRect(0,0,200,200); r.strokeStyle='#ff00ff'; r.lineWidth=14; r.lineCap='round';
-        r.beginPath(); r.moveTo(targetShape[0].x*2, targetShape[0].y*2);
-        targetShape.forEach(p => r.lineTo(p.x*2, p.y*2)); r.stroke();
-    }
-    drawRef();
-    window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; drawRef(); });
-</script>
-</body>
-</html>
+        el.innerText = score + "%"; el.classList.add('show');
+setTimeout(() => location.reload(), 3000);
+});
