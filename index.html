@@ -2,7 +2,7 @@
 <html lang="cs">
 <head>
     <meta charset="UTF-8">
-    <title>NEON KNOT - HARDCORE MODE</title>
+    <title>NEON KNOT - FINAL PRECISION</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
@@ -20,12 +20,14 @@
         .stat-label { font-size: 8px; color: #888; text-transform: uppercase; }
         .stat-value { font-size: 16px; font-weight: 900; color: #ff00ff; display: block; }
         #lvl-badge { background: #ff00ff; color: #000; padding: 2px 8px; border-radius: 5px; font-size: 10px; font-weight: 900; }
-        #score-display { font-size: 90px; font-weight: 900; text-align: center; text-shadow: 0 0 30px #ff00ff; opacity: 0; transform: scale(0.8); transition: 0.4s; }
+        #score-display { font-size: 90px; font-weight: 900; text-align: center; text-shadow: 0 0 30px #ff00ff; opacity: 0; transform: scale(0.8); transition: 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
         #score-display.show { opacity: 1; transform: scale(1); }
-        #reference-box { position: absolute; top: 130px; right: 20px; width: 60px; height: 60px; border: 1px solid #ff00ff; border-radius: 10px; }
-        #refCanvas { width: 100%; height: 100%; }
-        #side-menu { position: absolute; top: 0; left: -100%; width: 85%; height: 100%; background: #0a0a0a; z-index: 100; transition: 0.3s; padding: 20px; pointer-events: auto; border-right: 1px solid #ff00ff; }
+        #side-menu { position: absolute; top: 0; left: -100%; width: 85%; height: 100%; background: #0a0a0a; z-index: 100; transition: 0.3s; padding: 40px 20px; pointer-events: auto; border-right: 1px solid #ff00ff; box-sizing: border-box; }
         #side-menu.open { left: 0; }
+        .user-header { font-size: 24px; font-weight: 900; color: #ff00ff; }
+        .btn-invite { background: #00ffcc; color: #000; border: none; padding: 15px; border-radius: 12px; width: 100%; font-weight: bold; margin-top: 20px; cursor: pointer; }
+        #reference-box { position: absolute; top: 130px; right: 20px; width: 80px; height: 80px; border: 1px solid #ff00ff; border-radius: 10px; background: rgba(255,0,255,0.05); display: flex; justify-content: center; align-items: center; }
+        #refCanvas { width: 65px; height: 65px; }
     </style>
 </head>
 <body>
@@ -34,8 +36,9 @@
 
 <div id="side-menu">
     <div style="text-align:right; font-size:28px;" onclick="toggleMenu()">✕</div>
-    <h2 id="menu-user-name" style="color:#ff00ff">Hráč</h2>
-    <button style="background:#00ffcc; width:100%; padding:15px; border:none; border-radius:10px; font-weight:bold;" onclick="shareGame()">SDÍLET ODKAZ</button>
+    <div class="user-header" id="menu-user-name">...</div>
+    <div id="friends-list" style="margin-top:20px;"></div>
+    <button class="btn-invite" onclick="shareGame()">📤 POZVAT KAMARÁDA</button>
 </div>
 
 <div id="ui">
@@ -52,7 +55,7 @@
 </div>
 
 <script>
-    // --- FIREBASE (beze změn) ---
+    // --- FIREBASE CONFIG ---
     const firebaseConfig = {
         apiKey: "AIzaSyCnGuV53ZyxO1qU7G6zsVFqWuKPSndn_bQ",
         authDomain: "neon-desk.firebaseapp.com",
@@ -62,15 +65,21 @@
     };
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
+
     const userId = localStorage.getItem('neon_uid') || 'u_' + Math.random().toString(36).substr(2, 9);
     localStorage.setItem('neon_uid', userId);
-    let bestEver = 0;
+    let userName = localStorage.getItem('neon_name') || "Hráč";
+    document.getElementById('menu-user-name').innerText = userName;
 
+    let bestEver = 0;
     db.ref(`users/${userId}`).on('value', snap => {
-        bestEver = (snap.val() && snap.val().bestScore) || 0;
+        const data = snap.val() || {};
+        bestEver = data.bestScore || 0;
         document.getElementById('all-time-best').innerText = bestEver + "%";
+        document.getElementById('lvl-badge').innerText = "LVL " + (Math.floor(bestEver / 10) + 1);
     });
 
+    // --- HERNÍ LOGIKA ---
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
     const targetShape = [{x:50,y:10},{x:85,y:40},{x:50,y:55},{x:15,y:70},{x:50,y:95},{x:85,y:70},{x:50,y:55},{x:15,y:40},{x:50,y:10}];
@@ -93,60 +102,62 @@
         if (!isDrawing) return;
         const t = e.touches[0];
         const last = playerTrace[playerTrace.length-1];
-        ctx.strokeStyle = '#fff'; ctx.lineWidth = 5; ctx.shadowBlur = 10; ctx.shadowColor = '#ff00ff'; ctx.lineCap = 'round';
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 4; ctx.shadowBlur = 12; ctx.shadowColor = '#ff00ff'; ctx.lineCap = 'round';
         ctx.beginPath(); ctx.moveTo(last.x, last.y); ctx.lineTo(t.clientX, t.clientY); ctx.stroke();
         playerTrace.push({x: t.clientX, y: t.clientY});
     });
 
-    canvas.addEventListener('touchend', () => { strokeTimer = setTimeout(evaluateDraw, 250); });
+    canvas.addEventListener('touchend', () => {
+        strokeTimer = setTimeout(evaluateDraw, 250);
+    });
 
     function evaluateDraw() {
-        if (!isDrawing || playerTrace.length < 10) { isDrawing = false; return; }
+        if (!isDrawing || playerTrace.length < 15) { isDrawing = false; return; }
         isDrawing = false;
 
         let minX = Math.min(...playerTrace.map(p=>p.x)), maxX = Math.max(...playerTrace.map(p=>p.x));
         let minY = Math.min(...playerTrace.map(p=>p.y)), maxY = Math.max(...playerTrace.map(p=>p.y));
-        let size = Math.max(maxX - minX, maxY - minY, 50);
-        let cX = minX + (maxX-minX)/2, cY = minY + (maxY-minY)/2;
+        let userW = maxX - minX, userH = maxY - minY;
+        let size = Math.max(userW, userH, 50);
+        let cX = minX + userW/2, cY = minY + userH/2;
 
         const normPlayer = playerTrace.map(p => ({
             x: ((p.x - cX) / size) * 80 + 50,
             y: ((p.y - cY) / size) * 80 + 50
         }));
 
-        // --- HARDCORE BODOVÁNÍ ---
-        
-        // 1. Pokrytí předlohy (Coverage) - musíš projet celou cestu
-        let coveragePoints = 0;
-        const sampling = 50; // Rozsekáme předlohu na 50 bodů
-        for(let i=0; i<targetShape.length-1; i++) {
-            for(let j=0; j<1; j+=1/sampling) {
-                let tx = targetShape[i].x + (targetShape[i+1].x - targetShape[i].x) * j;
-                let ty = targetShape[i].y + (targetShape[i+1].y - targetShape[i].y) * j;
-                // Pokud je v blízkosti 10 jednotek hráčův bod, bod pro pokrytí
-                if (normPlayer.some(p => Math.hypot(p.x - tx, p.y - ty) < 10)) coveragePoints++;
-            }
-        }
-        let coveragePercent = (coveragePoints / (targetShape.length * sampling)) * 100;
-
-        // 2. Čistota (Purity) - trest za body mimo koridor
-        let outsidePenalty = 0;
-        normPlayer.forEach(p => {
-            // Najdeme nejbližší vzdálenost k jakékoli hraně předlohy
-            let minDistToEdge = Infinity;
-            for(let i=0; i<targetShape.length-1; i++) {
-                let d = distToSegment(p, targetShape[i], targetShape[i+1]);
-                if (d < minDistToEdge) minDistToEdge = d;
-            }
-            if (minDistToEdge > 8) outsidePenalty += (minDistToEdge - 8);
+        // 1. CHECKPOINTY (8 klíčových bodů diamantu)
+        const checkpoints = [{x:50,y:10}, {x:85,y:40}, {x:50,y:55}, {x:15,y:70}, {x:50,y:95}, {x:85,y:70}, {x:15,y:40}];
+        let hitCount = 0;
+        checkpoints.forEach(cp => {
+            if (normPlayer.some(p => Math.hypot(p.x - cp.x, p.y - cp.y) < 15)) hitCount++;
         });
 
-        // 3. Finální výpočet
-        let finalScore = coveragePercent - (outsidePenalty * 0.5);
-        finalScore = Math.round(Math.max(0, Math.min(100, finalScore)));
+        // 2. VÝPOČET PŘESNOSTI (Geometrický stín)
+        let totalDist = 0;
+        targetShape.forEach(t => {
+            let minDist = Math.min(...normPlayer.map(p => Math.hypot(p.x - t.x, p.y - t.y)));
+            totalDist += minDist;
+        });
+        let accuracy = Math.max(0, 100 - (totalDist / targetShape.length) * 8.5);
 
-        // Vykreslení "ducha" předlohy pro kontrolu
-        ctx.setLineDash([5, 5]); ctx.strokeStyle = 'rgba(255, 0, 255, 0.5)'; ctx.lineWidth = 2;
+        // 3. PENALIZACE ZA ŠUDLÁNÍ (Celková délka čáry)
+        let pLen = 0;
+        for(let i=1; i<playerTrace.length; i++) pLen += Math.hypot(playerTrace[i].x-playerTrace[i-1].x, playerTrace[i].y-playerTrace[i-1].y);
+        let tLen = size * 3.8; 
+        
+        let finalScore = accuracy;
+        if (hitCount < 5) finalScore *= 0.2; // Pokud mineš rohy, drastický pád
+        
+        if (pLen > tLen * 1.8) {
+            let penalty = (pLen / tLen - 1.8) * 45;
+            finalScore -= penalty;
+        }
+
+        finalScore = Math.round(Math.max(0, finalScore));
+
+        // Zobrazení "ducha" nákresu pro kontrolu
+        ctx.setLineDash([5, 5]); ctx.strokeStyle = 'rgba(255, 0, 255, 0.7)'; ctx.lineWidth = 2; ctx.shadowBlur = 0;
         ctx.beginPath();
         targetShape.forEach((p, i) => {
             let rx = ((p.x - 50) / 80) * size + cX;
@@ -156,15 +167,11 @@
         ctx.stroke(); ctx.setLineDash([]);
 
         animateScore(finalScore);
-        if(finalScore > bestEver) db.ref(`users/${userId}/bestScore`).set(finalScore);
-    }
 
-    function distToSegment(p, v, w) {
-        let l2 = Math.hypot(v.x - w.x, v.y - w.y)**2;
-        if (l2 == 0) return Math.hypot(p.x - v.x, p.y - v.y);
-        let t = ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / l2;
-        t = Math.max(0, Math.min(1, t));
-        return Math.hypot(p.x - (v.x + t * (w.x - v.x)), p.y - (v.y + t * (w.y - v.y)));
+        if(finalScore > bestEver) {
+            bestEver = finalScore;
+            db.ref(`users/${userId}/bestScore`).set(finalScore);
+        }
     }
 
     function animateScore(target) {
@@ -186,6 +193,12 @@
     }
     drawRef();
     window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; drawRef(); });
+
+    function shareGame() {
+        const url = window.location.origin + window.location.pathname + "?ref=" + userId;
+        if(navigator.share) { navigator.share({title:'NEON KNOT', text:'Dáš víc než '+bestEver+'%?', url:url}); }
+        else { navigator.clipboard.writeText(url); alert("Odkaz zkopírován!"); }
+    }
 </script>
 </body>
 </html>
