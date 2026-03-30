@@ -2,7 +2,7 @@
 <html lang="cs">
 <head>
     <meta charset="UTF-8">
-    <title>NEON KNOT - BALANCED FIX</title>
+    <title>NEON KNOT - FINAL PRECISION</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
@@ -11,24 +11,32 @@
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #050505; font-family: 'Segoe UI', sans-serif; color: #fff; touch-action: none; }
         canvas#gameCanvas { display: block; position: absolute; top: 0; left: 0; z-index: 1; }
+        
         #ui { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; display: flex; flex-direction: column; padding: 20px; box-sizing: border-box; }
+        
         .glass-panel { background: rgba(15,15,15,0.9); backdrop-filter: blur(15px); border-radius: 12px; border: 1px solid #444; padding: 10px; pointer-events: auto; }
         #top-row { display: flex; gap: 10px; margin-top: env(safe-area-inset-top); }
         #menu-btn { width: 45px; height: 45px; display: flex; align-items: center; justify-content: center; font-size: 24px; cursor: pointer; color: #ff00ff; }
         #stats-bar { flex-grow: 1; display: flex; justify-content: space-around; align-items: center; }
+
         .stat-item { text-align: center; }
         .stat-label { font-size: 8px; color: #888; text-transform: uppercase; }
         .stat-value { font-size: 16px; font-weight: 900; color: #ff00ff; display: block; }
+
         #result-container { margin-top: 10px; text-align: center; display: none; pointer-events: auto; width: 100%; animation: fadeIn 0.3s ease; }
         #score-display { font-size: 60px; font-weight: 900; text-shadow: 0 0 20px #ff00ff; margin-bottom: 10px; line-height: 1; }
+        
         .action-btns { display: flex; gap: 10px; justify-content: center; }
         .btn { border: none; padding: 12px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; text-transform: uppercase; }
         .btn-ok { background: #333; color: #fff; border: 1px solid #555; }
         .btn-challenge { background: #ff00ff; color: #fff; box-shadow: 0 0 15px rgba(255,0,255,0.4); }
+
         #side-menu { position: absolute; top: 0; left: -100%; width: 85%; height: 100%; background: #0a0a0a; z-index: 100; transition: 0.3s; padding: 40px 20px; pointer-events: auto; border-right: 1px solid #ff00ff; box-sizing: border-box; }
         #side-menu.open { left: 0; }
+        
         #reference-box { position: absolute; top: 130px; right: 20px; width: 65px; height: 65px; border: 1px solid #ff00ff; border-radius: 10px; background: rgba(255,0,255,0.05); display: flex; justify-content: center; align-items: center; }
         #refCanvas { width: 55px; height: 55px; }
+
         @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
@@ -39,6 +47,7 @@
 <div id="side-menu">
     <div style="text-align:right; font-size:28px; margin-bottom: 10px;" onclick="toggleMenu()">✕</div>
     <div style="font-size: 24px; font-weight: 900; color: #ff00ff;" id="menu-user-name">Hráč</div>
+    <p style="color: #888;">HARDCORE MODE AKTIVNÍ</p>
 </div>
 
 <div id="ui">
@@ -49,6 +58,7 @@
             <div class="stat-item"><span class="stat-label">Tahy</span><span class="stat-value">∞</span></div>
         </div>
     </div>
+
     <div id="result-container" class="glass-panel">
         <div id="score-display">0%</div>
         <div class="action-btns">
@@ -56,10 +66,12 @@
             <button class="btn btn-challenge" onclick="shareGame()">Sdílet</button>
         </div>
     </div>
+
     <div id="reference-box"><canvas id="refCanvas" width="200" height="200"></canvas></div>
 </div>
 
 <script>
+    // FIREBASE CONFIG
     const firebaseConfig = {
         apiKey: "AIzaSyCnGuV53ZyxO1qU7G6zsVFqWuKPSndn_bQ",
         authDomain: "neon-desk.firebaseapp.com",
@@ -114,7 +126,7 @@
         let drawW = maxX - minX, drawH = maxY - minY;
         
         // 1. TREST ZA MINI ČMRKANCE
-        if (drawW < 60 || drawH < 60) { showScore(0); return; }
+        if (drawW < 80 || drawH < 80) { showScore(Math.floor(Math.random()*5)); return; }
 
         let size = Math.max(drawW, drawH, 50);
         let centerX = minX + drawW / 2;
@@ -125,7 +137,7 @@
             y: ((p.y - centerY) / size) * 80 + 50
         }));
 
-        // 2. KONTROLA TVARU (Zrcadlo)
+        // 2. GEOMETRICKÁ PŘESNOST
         let totalErr = 0;
         normPlayer.forEach(p => {
             let minDist = Infinity;
@@ -137,27 +149,31 @@
         });
         let avgErr = totalErr / normPlayer.length;
 
-        // 3. KONTROLA "PROJETÍ" ROHŮ (Proti kolečku)
-        const checkPoints = [{x:50,y:10}, {x:85,y:40}, {x:15,y:40}, {x:50,y:95}];
-        let hits = 0;
-        checkPoints.forEach(cp => {
-            if (normPlayer.some(p => Math.hypot(p.x - cp.x, p.y - cp.y) < 14)) hits++;
+        // 3. KONTROLA ŠPIČEK (Proti kolečku a obdélníku)
+        const corners = [{x:50,y:10}, {x:85,y:40}, {x:50,y:95}, {x:15,y:40}];
+        let cornersHit = 0;
+        corners.forEach(c => {
+            if (normPlayer.some(p => Math.hypot(p.x - c.x, p.y - c.y) < 14)) cornersHit++;
         });
 
-        // VÝPOČET SKÓRE
-        let score = 100 - (avgErr * 12); // Základ podle přesnosti čáry
+        // 4. DETEKCE KOLEČKA (Rozptyl poloměru)
+        let distances = normPlayer.map(p => Math.hypot(p.x - 50, p.y - 50));
+        let maxR = Math.max(...distances), minR = Math.min(...distances);
+        let radiusVariance = maxR - minR;
+
+        // MATEMATIKA SKÓRE
+        let score = 100 - (avgErr * 12);
         
-        // Bonus/Penalta podle toho, jestli trefil rohy (Kolečko netrefí všechny rohy diamantu)
-        let cornerMultiplier = hits / checkPoints.length; 
-        score *= Math.pow(cornerMultiplier, 1.5); 
+        // Drastické srážky:
+        if (cornersHit < 4) score *= 0.4; // Pokud mineš byť jen jeden roh (typické pro kolečko)
+        if (radiusVariance < 15) score *= 0.2; // Pokud je to skoro dokonalý kruh
+        if (avgErr > 10) score *= 0.5; // Přílišné vybočení
 
-        // Trest za přílišné čmárání mimo
-        if (avgErr > 10) score *= 0.5;
+        let finalScore = Math.round(Math.max(0, score));
+        showScore(finalScore);
 
-        showScore(Math.round(Math.max(0, score)));
-
-        // Vykreslení ducha
-        ctx.setLineDash([8, 8]); ctx.strokeStyle = 'rgba(255, 0, 255, 0.5)'; ctx.lineWidth = 2;
+        // Vykreslení "ducha"
+        ctx.setLineDash([8, 8]); ctx.strokeStyle = 'rgba(255, 0, 255, 0.4)'; ctx.lineWidth = 2; ctx.shadowBlur = 0;
         ctx.beginPath();
         targetShape.forEach((p, i) => {
             let rx = ((p.x - 50) / 80) * size + centerX;
@@ -192,12 +208,14 @@
     }
 
     function toggleMenu() { document.getElementById('side-menu').classList.toggle('open'); }
+    
     function drawRef() {
         const r = document.getElementById('refCanvas').getContext('2d');
         r.clearRect(0,0,200,200); r.strokeStyle='#ff00ff'; r.lineWidth=12; r.lineCap='round';
         r.beginPath(); r.moveTo(targetShape[0].x*2, targetShape[0].y*2);
         targetShape.forEach(p => r.lineTo(p.x*2, p.y*2)); r.stroke();
     }
+    
     drawRef();
     window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; drawRef(); });
     function shareGame() { alert("Skóre uloženo!"); }
