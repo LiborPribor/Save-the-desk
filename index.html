@@ -2,96 +2,48 @@
 <html lang="cs">
 <head>
     <meta charset="UTF-8">
-    <title>NEON KNOT - PRO EDITION</title>
+    <title>NEON KNOT - BALANCED</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
-
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #050505; font-family: 'Segoe UI', sans-serif; color: #fff; touch-action: none; }
-        canvas#gameCanvas { display: block; position: absolute; top: 0; left: 0; z-index: 1; }
-        #ui { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; display: flex; flex-direction: column; justify-content: space-between; padding: 20px; box-sizing: border-box; }
-        .glass-panel { background: rgba(15,15,15,0.9); backdrop-filter: blur(15px); border-radius: 12px; border: 1px solid #444; padding: 10px; pointer-events: auto; }
-        #top-row { display: flex; gap: 10px; margin-top: env(safe-area-inset-top); }
-        #menu-btn { width: 45px; height: 45px; display: flex; align-items: center; justify-content: center; font-size: 24px; cursor: pointer; color: #ff00ff; }
-        #stats-bar { flex-grow: 1; display: flex; justify-content: space-around; align-items: center; }
-        .stat-item { text-align: center; }
-        .stat-label { font-size: 8px; color: #888; text-transform: uppercase; }
-        .stat-value { font-size: 16px; font-weight: 900; color: #ff00ff; display: block; }
-        #lvl-badge { background: #ff00ff; color: #000; padding: 2px 8px; border-radius: 5px; font-size: 10px; font-weight: 900; }
-        #score-display { font-size: 90px; font-weight: 900; text-align: center; text-shadow: 0 0 30px #ff00ff; opacity: 0; transform: scale(0.8); transition: 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
-        #score-display.show { opacity: 1; transform: scale(1); }
-        #side-menu { position: absolute; top: 0; left: -100%; width: 85%; height: 100%; background: #0a0a0a; z-index: 100; transition: 0.3s; padding: 40px 20px; pointer-events: auto; border-right: 1px solid #ff00ff; box-sizing: border-box; }
-        #side-menu.open { left: 0; }
-        .user-header { font-size: 24px; font-weight: 900; color: #ff00ff; }
-        #reference-box { position: absolute; top: 130px; right: 20px; width: 80px; height: 80px; border: 1px solid #ff00ff; border-radius: 10px; background: rgba(255,0,255,0.05); display: flex; justify-content: center; align-items: center; }
-        #refCanvas { width: 65px; height: 65px; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #050505; font-family: sans-serif; color: #fff; touch-action: none; }
+        canvas { display: block; position: absolute; top: 0; left: 0; z-index: 1; }
+        #ui { position: absolute; width: 100%; height: 100%; pointer-events: none; z-index: 10; padding: 20px; box-sizing: border-box; display: flex; flex-direction: column; }
+        .panel { background: rgba(20,20,20,0.8); backdrop-filter: blur(10px); border: 1px solid #444; padding: 10px; border-radius: 10px; pointer-events: auto; }
+        #score-display { font-size: 80px; font-weight: 900; text-align: center; margin-top: 40px; text-shadow: 0 0 20px #f0f; opacity: 0; transition: 0.3s; }
+        #score-display.show { opacity: 1; }
+        #ref-box { position: absolute; top: 120px; right: 20px; width: 60px; height: 60px; border: 1px solid #f0f; border-radius: 8px; }
     </style>
 </head>
 <body>
-
 <canvas id="gameCanvas"></canvas>
-
-<div id="side-menu">
-    <div style="text-align:right; font-size:28px;" onclick="toggleMenu()">✕</div>
-    <div class="user-header" id="menu-user-name">...</div>
-    <div id="friends-list" style="margin-top:20px;"></div>
-</div>
-
 <div id="ui">
-    <div id="top-row">
-        <div id="menu-btn" class="glass-panel" onclick="toggleMenu()">☰</div>
-        <div id="stats-bar" class="glass-panel">
-            <div class="stat-item"><span class="stat-label">Best</span><span id="all-time-best" class="stat-value">0%</span></div>
-            <div class="stat-item"><span id="lvl-badge">LVL 1</span></div>
-            <div class="stat-item"><span class="stat-label">Tahy</span><span class="stat-value">∞</span></div>
-        </div>
+    <div class="panel" style="display:flex; justify-content: space-between; align-items: center;">
+        <div>BEST: <span id="best-val">0%</span></div>
+        <div style="color:#f0f; font-weight:bold;">NEON KNOT</div>
+        <div onclick="location.reload()">RESTART</div>
     </div>
     <div id="score-display">0%</div>
-    <div id="reference-box"><canvas id="refCanvas" width="200" height="200"></canvas></div>
+    <div id="ref-box"><canvas id="refCanvas" width="100" height="100" style="width:100%; height:100%;"></canvas></div>
 </div>
 
 <script>
-    // --- KONFIGURACE ---
-    const firebaseConfig = {
-        apiKey: "AIzaSyCnGuV53ZyxO1qU7G6zsVFqWuKPSndn_bQ",
-        authDomain: "neon-desk.firebaseapp.com",
-        databaseURL: "https://neon-desk-default-rtdb.europe-west1.firebasedatabase.app",
-        projectId: "neon-desk",
-        appId: "1:721167653862:web:36ca5e1022e348896c5427"
-    };
+    // Firebase setup (tvůj stávající)
+    const firebaseConfig = { apiKey: "AIzaSyCnGuV53ZyxO1qU7G6zsVFqWuKPSndn_bQ", databaseURL: "https://neon-desk-default-rtdb.europe-west1.firebasedatabase.app" };
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
-
-    const userId = localStorage.getItem('neon_uid') || 'u_' + Math.random().toString(36).substr(2, 9);
+    const userId = localStorage.getItem('neon_uid') || 'u' + Math.random().toString(36).substr(2,5);
     localStorage.setItem('neon_uid', userId);
-    let userName = localStorage.getItem('neon_name') || prompt("Jméno:") || "Hráč";
-    localStorage.setItem('neon_name', userName);
-    document.getElementById('menu-user-name').innerText = userName;
-
-    let bestEver = 0;
-    db.ref(`users/${userId}`).on('value', snap => {
-        const data = snap.val() || {};
-        bestEver = data.bestScore || 0;
-        document.getElementById('all-time-best').innerText = bestEver + "%";
-    });
 
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
     const targetShape = [{x:50,y:10},{x:85,y:40},{x:50,y:55},{x:15,y:70},{x:50,y:95},{x:85,y:70},{x:50,y:55},{x:15,y:40},{x:50,y:10}];
     
-    let playerTrace = [], isDrawing = false, strokeTimer = null;
+    let playerTrace = [], isDrawing = false, strokeTimer = null, bestScore = 0;
     canvas.width = window.innerWidth; canvas.height = window.innerHeight;
 
-    // --- POMOCNÉ FUNKCE ---
-    function distToSegment(p, v, w) {
-        let l2 = Math.hypot(v.x - w.x, v.y - w.y) ** 2;
-        if (l2 === 0) return Math.hypot(p.x - v.x, p.y - v.y);
-        let t = ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / l2;
-        t = Math.max(0, Math.min(1, t));
-        return Math.hypot(p.x - (v.x + t * (w.x - v.x)), p.y - (v.y + t * (w.y - v.y)));
-    }
+    db.ref(`users/${userId}/bestScore`).on('value', s => { bestScore = s.val() || 0; document.getElementById('best-val').innerText = bestScore + "%"; });
 
     canvas.addEventListener('touchstart', e => {
         if (strokeTimer) clearTimeout(strokeTimer);
@@ -106,97 +58,76 @@
 
     canvas.addEventListener('touchmove', e => {
         if (!isDrawing) return;
-        const t = e.touches[0];
         const last = playerTrace[playerTrace.length-1];
-        ctx.strokeStyle = '#fff'; ctx.lineWidth = 4; ctx.shadowBlur = 15; ctx.shadowColor = '#ff00ff'; ctx.lineCap = 'round';
-        ctx.beginPath(); ctx.moveTo(last.x, last.y); ctx.lineTo(t.clientX, t.clientY); ctx.stroke();
-        playerTrace.push({x: t.clientX, y: t.clientY});
+        const now = {x: e.touches[0].clientX, y: e.touches[0].clientY};
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 4; ctx.shadowBlur = 10; ctx.shadowColor = '#f0f'; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(last.x, last.y); ctx.lineTo(now.x, now.y); ctx.stroke();
+        playerTrace.push(now);
     });
 
-    canvas.addEventListener('touchend', () => {
-        strokeTimer = setTimeout(evaluateDraw, 250);
-    });
+    canvas.addEventListener('touchend', () => { strokeTimer = setTimeout(evaluate, 250); });
 
-    function evaluateDraw() {
+    function evaluate() {
         if (!isDrawing || playerTrace.length < 15) { isDrawing = false; return; }
         isDrawing = false;
 
         let minX = Math.min(...playerTrace.map(p=>p.x)), maxX = Math.max(...playerTrace.map(p=>p.x));
         let minY = Math.min(...playerTrace.map(p=>p.y)), maxY = Math.max(...playerTrace.map(p=>p.y));
-        let size = Math.max(maxX - minX, maxY - minY, 50);
-        let cX = minX + (maxX-minX)/2, cY = minY + (maxY-minY)/2;
+        let userW = maxX - minX, userH = maxY - minY;
+        let size = Math.max(userW, userH, 50);
+        let cX = minX + userW/2, cY = minY + userH/2;
 
-        const normPlayer = playerTrace.map(p => ({
-            x: ((p.x - cX) / size) * 80 + 50,
-            y: ((p.y - cY) / size) * 80 + 50
-        }));
+        const normPlayer = playerTrace.map(p => ({ x: ((p.x - cX) / size) * 80 + 50, y: ((p.y - cY) / size) * 80 + 50 }));
 
-        // VEKTOROVÁ KONTROLA ÚSEČEK
-        let segmentScores = [];
-        for (let i = 0; i < targetShape.length - 1; i++) {
-            let p1 = targetShape[i], p2 = targetShape[i+1];
-            let closePoints = normPlayer.filter(p => distToSegment(p, p1, p2) < 12);
-            
-            if (closePoints.length < 2) {
-                segmentScores.push(0);
-            } else {
-                let hasStart = closePoints.some(p => Math.hypot(p.x - p1.x, p.y - p1.y) < 22);
-                let hasEnd = closePoints.some(p => Math.hypot(p.x - p2.x, p.y - p2.y) < 22);
-                segmentScores.push(hasStart && hasEnd ? 100 : 20);
-            }
-        }
-
-        let baseScore = segmentScores.reduce((a,b)=>a+b, 0) / segmentScores.length;
-
-        // PENALIZACE ZA ODPAD (Knedlík/Kolečko filtr)
-        let wastePoints = 0;
+        // 1. Bodová shoda (vzdálenost od nejbližšího bodu předlohy)
+        let totalDist = 0;
         normPlayer.forEach(p => {
-            let minDist = Infinity;
-            for (let i=0; i<targetShape.length-1; i++) {
-                let d = distToSegment(p, targetShape[i], targetShape[i+1]);
-                if (d < minDist) minDist = d;
-            }
-            if (minDist > 14) wastePoints++;
+            let minDist = Math.min(...targetShape.map(t => Math.hypot(p.x - t.x, p.y - t.y)));
+            totalDist += minDist;
         });
+        let accuracy = Math.max(0, 100 - (totalDist / normPlayer.length) * 7);
 
-        let wasteRatio = wastePoints / normPlayer.length;
-        // Brutální srážka: Pokud je víc než 30 % bodů mimo čáry, skóre letí k nule
-        let finalScore = baseScore * Math.max(0, (1 - wasteRatio * 2.5));
+        // 2. Kontrola délky (Šudlání stop!)
+        let pLen = 0;
+        for(let i=1; i<playerTrace.length; i++) pLen += Math.hypot(playerTrace[i].x-playerTrace[i-1].x, playerTrace[i].y-playerTrace[i-1].y);
+        let tLen = size * 3.8; 
+        let lenRatio = pLen / tLen;
+
+        // 3. Kontrola tvaru (Knedlík vs Diamant)
+        // Spočítáme průměrnou vzdálenost bodů od středu (u diamantu musí kolísat)
+        let distsFromCenter = normPlayer.map(p => Math.hypot(p.x - 50, p.y - 50));
+        let avgDistCenter = distsFromCenter.reduce((a,b)=>a+b)/distsFromCenter.length;
+        let variance = distsFromCenter.reduce((a,b)=> a + Math.abs(b - avgDistCenter), 0) / distsFromCenter.length;
+
+        let finalScore = accuracy;
+        
+        // Penalizace za šudlání (čára je moc dlouhá)
+        if (lenRatio > 1.4) finalScore -= (lenRatio - 1.4) * 60;
+        // Penalizace za knedlík (moc malá variance ve vzdálenosti od středu - kruh)
+        if (variance < 12) finalScore -= (12 - variance) * 5;
 
         finalScore = Math.round(Math.max(0, finalScore));
 
-        // DUCH
+        // Kreslení "Ducha"
         ctx.setLineDash([5, 5]); ctx.strokeStyle = 'rgba(255,0,255,0.5)'; ctx.lineWidth = 2; ctx.shadowBlur = 0;
         ctx.beginPath();
-        targetShape.forEach((p, i) => {
+        targetShape.forEach((p,i) => {
             let rx = ((p.x-50)/80)*size + cX, ry = ((p.y-50)/80)*size + cY;
-            if(i===0) ctx.moveTo(rx, ry); else ctx.lineTo(rx, ry);
+            i===0 ? ctx.moveTo(rx, ry) : ctx.lineTo(rx, ry);
         });
         ctx.stroke(); ctx.setLineDash([]);
 
-        animateScore(finalScore);
-        if(finalScore > bestEver) db.ref(`users/${userId}/bestScore`).set(finalScore);
+        const scoreEl = document.getElementById('score-display');
+        scoreEl.innerText = finalScore + "%";
+        scoreEl.classList.add('show');
+
+        if(finalScore > bestScore) db.ref(`users/${userId}/bestScore`).set(finalScore);
     }
 
-    function animateScore(target) {
-        let curr = 0; const el = document.getElementById('score-display');
-        el.classList.add('show');
-        const itv = setInterval(() => {
-            el.innerText = curr + "%";
-            if(curr >= target) clearInterval(itv);
-            curr++;
-        }, 15);
-    }
-
-    function toggleMenu() { document.getElementById('side-menu').classList.toggle('open'); }
-    function drawRef() {
-        const r = document.getElementById('refCanvas').getContext('2d');
-        r.clearRect(0,0,200,200); r.strokeStyle='#ff00ff'; r.lineWidth=14; r.lineCap='round';
-        r.beginPath(); r.moveTo(targetShape[0].x*2, targetShape[0].y*2);
-        targetShape.forEach(p => r.lineTo(p.x*2, p.y*2)); r.stroke();
-    }
-    drawRef();
-    window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; drawRef(); });
+    // Reference
+    const rCtx = document.getElementById('refCanvas').getContext('2d');
+    rCtx.strokeStyle = '#f0f'; rCtx.lineWidth = 8; rCtx.lineCap = 'round'; rCtx.beginPath();
+    targetShape.forEach((p,i) => { i===0 ? rCtx.moveTo(p.x, p.y) : rCtx.lineTo(p.x, p.y); }); rCtx.stroke();
 </script>
 </body>
 </html>
