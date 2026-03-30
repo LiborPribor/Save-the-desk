@@ -84,7 +84,6 @@
     const todayStr = new Date().toISOString().split('T')[0];
     let bestEver = 0;
 
-    // Firebase Sync
     db.ref(`users/${userId}`).on('value', snap => {
         const data = snap.val() || {};
         bestEver = data.bestScore || 0;
@@ -109,7 +108,6 @@
     const targetShape = [{x:50,y:10},{x:80,y:40},{x:50,y:50},{x:20,y:60},{x:50,y:90},{x:80,y:60},{x:50,y:50},{x:20,y:40},{x:50,y:10}];
     let playerTrace = [], isDrawing = false;
 
-    // Start kreslení
     canvas.addEventListener('touchstart', e => {
         isDrawing = true;
         const t = e.touches[0];
@@ -118,7 +116,6 @@
         document.getElementById('score-display').classList.remove('show');
     });
 
-    // Kreslení
     canvas.addEventListener('touchmove', e => {
         if (!isDrawing) return;
         const t = e.touches[0];
@@ -130,47 +127,60 @@
         playerTrace.push({x: t.clientX, y: t.clientY});
     });
 
-    // Konec a vyhodnocení
     canvas.addEventListener('touchend', () => {
         if (!isDrawing || playerTrace.length < 10) { isDrawing = false; return; }
         isDrawing = false;
 
-        const normPlayer = normalize(playerTrace);
-        let totalDist = 0;
+        // Dynamické zaměření na nákres uživatele
+        let minX = Math.min(...playerTrace.map(p=>p.x)), maxX = Math.max(...playerTrace.map(p=>p.x));
+        let minY = Math.min(...playerTrace.map(p=>p.y)), maxY = Math.max(...playerTrace.map(p=>p.y));
+        let userW = maxX - minX;
+        let userH = maxY - minY;
+        let userSize = Math.max(userW, userH, 1);
 
-        normPlayer.forEach(p => {
+        // 1. Výpočet přesnosti čáry
+        let totalDist = 0;
+        playerTrace.forEach(p => {
             let minDist = Infinity;
             targetShape.forEach(t => {
-                let d = Math.hypot(p.x - t.x, p.y - t.y);
+                let tx = ((t.x - 10) / 80) * userSize + minX;
+                let ty = ((t.y - 10) / 80) * userSize + minY;
+                let d = Math.hypot(p.x - tx, p.y - ty);
                 if (d < minDist) minDist = d;
             });
             totalDist += minDist;
         });
 
-        let avgDist = totalDist / normPlayer.length;
-        let finalScore = Math.round(Math.max(0, 100 - (avgDist * 5.8)));
+        let avgDist = totalDist / playerTrace.length;
+        let relativeError = avgDist / userSize;
+        let precisionScore = Math.max(0, 100 - (relativeError * 150));
+
+        // 2. Výpočet pokrytí (kontrola, zda uživatel projel celý tvar)
+        let reachedZones = 0;
+        for (let i = 0; i < 10; i++) {
+            let t = targetShape[Math.floor((i / 9) * (targetShape.length - 1))];
+            let tx = ((t.x - 10) / 80) * userSize + minX;
+            let ty = ((t.y - 10) / 80) * userSize + minY;
+            if (playerTrace.some(p => Math.hypot(p.x - tx, p.y - ty) < userSize * 0.15)) reachedZones++;
+        }
+        let coverageScore = (reachedZones / 10) * 100;
+
+        let finalScore = Math.round((precisionScore * 0.4) + (coverageScore * 0.6));
         if (finalScore > 97) finalScore = 100;
 
         drawGhost(playerTrace);
         animateScore(finalScore);
 
-        // Uložení dat
         db.ref(`users/${userId}/history/${todayStr}`).push(finalScore);
         db.ref(`users/${userId}/name`).set(userName);
         if (finalScore > bestEver) db.ref(`users/${userId}/bestScore`).set(finalScore);
     });
 
-    function normalize(pts) {
-        let minX = Math.min(...pts.map(p=>p.x)), maxX = Math.max(...pts.map(p=>p.x));
-        let minY = Math.min(...pts.map(p=>p.y)), maxY = Math.max(...pts.map(p=>p.y));
-        let size = Math.max(maxX - minX, maxY - minY, 1);
-        return pts.map(p => ({ x: ((p.x - minX) / size) * 80 + 10, y: ((p.y - minY) / size) * 80 + 10 }));
-    }
-
     function drawGhost(pts) {
         let minX = Math.min(...pts.map(p=>p.x)), maxX = Math.max(...pts.map(p=>p.x));
         let minY = Math.min(...pts.map(p=>p.y)), maxY = Math.max(...pts.map(p=>p.y));
         let size = Math.max(maxX - minX, maxY - minY, 1);
+        
         ctx.strokeStyle = 'rgba(255, 0, 255, 0.5)'; ctx.lineWidth = 2; ctx.shadowBlur = 0;
         ctx.beginPath();
         targetShape.forEach((p, i) => {
