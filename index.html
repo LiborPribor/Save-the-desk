@@ -82,6 +82,13 @@
         }
         #side-menu.open { left: 0; }
         
+        .info-section {
+            margin: 20px 0; padding: 15px; background: rgba(255,255,255,0.03);
+            border-radius: 10px; border-left: 3px solid #ff00ff;
+        }
+        .info-header { display: flex; align-items: center; gap: 10px; color: #ff00ff; font-weight: bold; margin-bottom: 10px; }
+        .info-icon { width: 20px; height: 20px; border: 1px solid #ff00ff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; }
+
         .friend-row { display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #1a1a1a; font-size: 13px; }
         .friend-row.me { background: rgba(255, 0, 255, 0.15); color: #ff00ff; font-weight: bold; border-radius: 5px; }
 
@@ -108,13 +115,16 @@
         <h1 style="color:#ff00ff; margin:0 0 15px 0; letter-spacing: 2px;">NEON KNOT</h1>
         <div class="tutorial-box">
             <b>CO MÁŠ DĚLAT?</b>
-            Obkresli vzorový obrazec (vpravo nahoře) jedním souvislým tahem. Trefuj rohy a drž se linie.
+            Obkresli vzor (vpravo nahoře) jedním souvislým tahem.
+            <br><br>
+            <b>JAK ZÍSKAT TAHY NAVÍC?</b>
+            Klikni na "Pozvat kámoše" a pošli link. Tah získáš v momentě, kdy <b>tvůj kámoš link otevře a zadá svou přezdívku</b>. Samotné odeslání zprávy nestačí!
         </div>
         <input type="text" id="player-name-input" class="login-input" placeholder="Tvá přezdívka..." maxlength="12">
         <div style="font-size: 10px; color: #777; margin-bottom: 20px; line-height: 1.4;">
             • Obnova tahů vždy o půlnoci<br>
             • Za každých 20 dní v řadě +1 tah navždy<br>
-            • Za každého pozvaného kámoše +1 tah hned
+            • Za každého aktivního kámoše +1 tah ihned
         </div>
         <button class="btn btn-challenge" style="width:100%" onclick="savePlayerName()">START HRY</button>
     </div>
@@ -124,8 +134,17 @@
 
 <div id="side-menu">
     <div style="text-align:right; font-size:28px;" onclick="toggleMenu()">✕</div>
-    <h2 id="menu-user-name" style="color:#ff00ff; margin-bottom: 20px;">Hráč</h2>
+    <h2 id="menu-user-name" style="color:#ff00ff; margin-bottom: 10px;">Hráč</h2>
+    
+    <div class="info-section">
+        <div class="info-header"><div class="info-icon">i</div> Bonusové tahy</div>
+        <div style="font-size: 11px; color: #ccc; line-height: 1.5;">
+            Sdílej svůj link. Bonusový tah se ti <b>automaticky přičte</b>, jakmile se tvůj kamarád poprvé přihlásí do hry přes tvůj odkaz.
+        </div>
+    </div>
+
     <button class="btn btn-challenge" style="width:100%; margin-bottom: 25px;" onclick="shareGame('Vyzývám tě!')">POZVAT KÁMOŠE (+1 TAH)</button>
+    
     <div style="font-size: 11px; color: #888; text-transform: uppercase; margin-bottom: 10px;">TOP 10 ŽEBRÁČEK</div>
     <div id="friends-list"></div>
 </div>
@@ -188,7 +207,9 @@
             document.getElementById('login-overlay').style.display = 'none';
             db.ref(`users/${userId}`).update({ name: userName });
             if (referrer && referrer !== userId) {
+                // Přičtení tahu refererovi
                 db.ref(`users/${referrer}/moves`).transaction(m => (m || 0) + 1);
+                // Nový hráč dostane 2 tahy do začátku (1 základ + 1 za pozvání)
                 db.ref(`users/${userId}/moves`).set(2);
             } else {
                 db.ref(`users/${userId}/moves`).set(1);
@@ -200,7 +221,6 @@
     function initGame() {
         document.getElementById('menu-user-name').innerText = userName;
         
-        // REÁLNÝ ČAS: Listener, který okamžitě aktualizuje tahy při změně v DB
         db.ref(`users/${userId}`).on('value', snap => {
             const data = snap.val() || {};
             streak = data.streak || 0;
@@ -208,7 +228,7 @@
             moves = data.moves || 0;
             checkMidnightReset(data.lastPlayDate);
             updateUI();
-            setTimeout(drawRef, 100); // Pro jistotu překreslíme vzor
+            setTimeout(drawRef, 150);
         });
 
         db.ref('users').orderByChild('bestScore').limitToLast(10).on('value', snap => {
@@ -223,6 +243,9 @@
             });
             document.getElementById('friends-list').innerHTML = html;
         });
+        
+        // Pojistka pro vykreslení
+        setTimeout(drawRef, 1000);
     }
 
     function checkMidnightReset(lastPlayDate) {
