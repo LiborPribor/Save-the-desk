@@ -64,14 +64,15 @@
         }
         .tutorial-box b { color: #ff00ff; display: block; margin-bottom: 5px; }
 
-        #top-row { display: flex; gap: 10px; margin-top: env(safe-area-inset-top); }
+        #top-row { display: flex; gap: 8px; margin-top: env(safe-area-inset-top); }
         #menu-btn { width: 45px; height: 45px; display: flex; align-items: center; justify-content: center; font-size: 24px; cursor: pointer; color: #ff00ff; }
         
         #stats-bar { flex-grow: 1; display: flex; justify-content: space-around; align-items: center; }
         .stat-item { text-align: center; }
         .stat-label { font-size: 8px; color: #888; text-transform: uppercase; }
-        .stat-value { font-size: 16px; font-weight: 900; color: #ff00ff; display: block; }
-        .moves-count { color: #00ff00 !important; }
+        .stat-value { font-size: 15px; font-weight: 900; color: #ff00ff; display: block; }
+        .moves-count { color: #00ffff !important; } /* AZUROVÁ */
+        .global-count { color: #ffffff !important; }
 
         #side-menu { 
             position: absolute; top: 0; left: -100%; width: 85%; height: 100%; 
@@ -106,7 +107,6 @@
         }
         #refCanvas { width: 60px; height: 60px; }
 
-        /* Jazyková tlačítka dole */
         #lang-switcher {
             position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
             display: flex; gap: 10px; pointer-events: auto; z-index: 20;
@@ -129,7 +129,7 @@
             <span id="tut-t-1">Obkresli vzor (vpravo nahoře) jedním souvislým tahem.</span>
             <br><br>
             <b id="tut-h-2">JAK ZÍSKAT TAHY NAVÍC?</b>
-            <span id="tut-t-2">Klikni na "Pozvat kámoše" a pošli link. Tah získáš v momentě, kdy tvůj kámoš link otevře a zadá svou přezdívku.</span>
+            <span id="tut-t-2">Klikni na "Pozvat kámoše" a pošli link. Tah se přičte až kamarád odehraje..</span>
         </div>
         <input type="text" id="player-name-input" class="login-input" placeholder="..." maxlength="12">
         <div style="font-size: 10px; color: #777; margin-bottom: 20px; line-height: 1.4;" id="login-bullets">
@@ -151,7 +151,7 @@
         <div class="info-header"><div class="info-icon">i</div> <span id="menu-info-title">Instrukce</span></div>
         <div style="font-size: 11px; color: #ccc; line-height: 1.5;" id="menu-info-body">
             <b>CO DĚLAT?</b><br>Obkresli vzor jedním tahem.<br><br>
-            <b>BONUSY:</b><br>Sdílej svůj link. Tah se přičte, jakmile se kamarád poprvé přihlásí.<br><br>
+            <b>BONUSY:</b><br>Sdílej svůj link. Tah se přičte až kamarád odehraje..<br><br>
             <b>ŘADA:</b><br>Hraj každý den. Za každých 20 dní získáš +1 základní tah navždy.
         </div>
     </div>
@@ -169,6 +169,7 @@
             <div class="stat-item"><span class="stat-label" id="label-moves">Tahy</span><span id="moves-display" class="stat-value moves-count">0</span></div>
             <div class="stat-item"><span class="stat-label" id="label-best">Best</span><span id="best-display" class="stat-value">0%</span></div>
             <div class="stat-item"><span class="stat-label" id="label-streak">Řada</span><span id="streak-display" class="stat-value">🔥 0</span></div>
+            <div class="stat-item"><span class="stat-label" id="label-global">Svět</span><span id="global-display" class="stat-value global-count">0</span></div>
         </div>
     </div>
     <div id="result-container" class="glass-panel">
@@ -201,22 +202,22 @@
     const texts = {
         cz: {
             tutH1: "CO MÁŠ DĚLAT?", tutT1: "Obkresli vzor (vpravo nahoře) jedním souvislým tahem.",
-            tutH2: "JAK ZÍSKAT TAHY NAVÍC?", tutT2: "Klikni na 'Pozvat kámoše'. Tah získáš, když tvůj kámoš link otevře a zadá přezdívku.",
+            tutH2: "JAK ZÍSKAT TAHY NAVÍC?", tutT2: "Klikni na 'Pozvat kámoše'. Tah se přičte až kamarád odehraje..",
             bullets: "• Obnova tahů vždy o půlnoci<br>• Za každých 20 dní v řadě +1 tah navždy<br>• Za každého aktivního kámoše +1 tah ihned",
             start: "START HRY", invite: "POZVAT KÁMOŠE (+1 TAH)", top10: "TOP 10 ŽEBŘÍČEK",
-            labelMoves: "Tahy", labelBest: "Best", labelStreak: "Řada", again: "Znovu", share: "Sdílet",
+            labelMoves: "Tahy", labelBest: "Best", labelStreak: "Řada", labelGlobal: "Svět", again: "Znovu", share: "Sdílet",
             nickPlaceholder: "Tvá přezdívka...", infoTitle: "Instrukce", 
-            infoBody: "<b>CO DĚLAT?</b><br>Obkresli vzor jedním tahem.<br><br><b>BONUSY:</b><br>Sdílej svůj link. Tah se přičte, jakmile se kamarád přihlásí.<br><br><b>ŘADA:</b><br>Hraj každý den. Za každých 20 dní získáš +1 tah navždy.",
+            infoBody: "<b>CO DĚLAT?</b><br>Obkresli vzor jedním tahem.<br><br><b>BONUSY:</b><br>Sdílej svůj link. Tah se přičte až kamarád odehraje..<br><br><b>ŘADA:</b><br>Hraj každý den. Za každých 20 dní získáš +1 tah navždy.",
             alertNoMoves: "Dnes už jsi vyčerpal tahy. Přijď po půlnoci!", shareMsg: "Sleduj můj tah!"
         },
         en: {
             tutH1: "HOW TO PLAY?", tutT1: "Trace the pattern (top right) in one continuous stroke.",
-            tutH2: "GET EXTRA MOVES?", tutT2: "Click 'Invite Friends'. You get a move when they open the link and enter their name.",
+            tutH2: "GET EXTRA MOVES?", tutT2: "Click 'Invite Friends'. Move added after your friend plays..",
             bullets: "• Moves reset at midnight<br>• Every 20-day streak grants +1 perm move<br>• +1 move for every active friend instantly",
             start: "START GAME", invite: "INVITE FRIENDS (+1 MOVE)", top10: "TOP 10 RANKING",
-            labelMoves: "Moves", labelBest: "Best", labelStreak: "Streak", again: "Again", share: "Share",
+            labelMoves: "Moves", labelBest: "Best", labelStreak: "Streak", labelGlobal: "World", again: "Again", share: "Share",
             nickPlaceholder: "Your nickname...", infoTitle: "Instructions",
-            infoBody: "<b>HOW TO PLAY?</b><br>Trace the pattern in one go.<br><br><b>BONUSES:</b><br>Share your link. Get moves when friends join.<br><br><b>STREAK:</b><br>Play daily. Every 20 days gives you +1 move forever.",
+            infoBody: "<b>HOW TO PLAY?</b><br>Trace the pattern in one go.<br><br><b>BONUSES:</b><br>Share your link. Moves added after friends play..<br><br><b>STREAK:</b><br>Play daily. Every 20 days gives you +1 move forever.",
             alertNoMoves: "No moves left today. Come back after midnight!", shareMsg: "Check my move!"
         }
     };
@@ -239,6 +240,7 @@
         document.getElementById('label-moves').innerText = t.labelMoves;
         document.getElementById('label-best').innerText = t.labelBest;
         document.getElementById('label-streak').innerText = t.labelStreak;
+        document.getElementById('label-global').innerText = t.labelGlobal;
         document.getElementById('btn-again').innerText = t.again;
         document.getElementById('btn-share').innerText = t.share;
         document.getElementById('player-name-input').placeholder = t.nickPlaceholder;
@@ -266,11 +268,8 @@
             userName = name;
             localStorage.setItem('neon_name', name);
             document.getElementById('login-overlay').style.display = 'none';
-            db.ref(`users/${userId}`).update({ name: userName });
-            if (referrer && referrer !== userId) {
-                db.ref(`users/${referrer}/moves`).transaction(m => (m || 0) + 1);
-                db.ref(`users/${userId}/moves`).set(2);
-            } else {
+            db.ref(`users/${userId}`).update({ name: userName, invitedBy: referrer || null });
+            if (!moves) {
                 db.ref(`users/${userId}/moves`).set(1);
             }
             initGame();
@@ -287,6 +286,10 @@
             checkMidnightReset(data.lastPlayDate);
             updateUI();
             setTimeout(drawRef, 150);
+        });
+
+        db.ref('global_moves').on('value', snap => {
+            document.getElementById('global-display').innerText = snap.val() || 0;
         });
 
         db.ref('users').orderByChild('bestScore').limitToLast(10).on('value', snap => {
@@ -310,8 +313,7 @@
             const yesterdayStr = yesterday.toLocaleDateString();
             if (lastPlayDate === yesterdayStr) streak++; else streak = 1;
             let dailyBase = 1 + Math.floor(streak / 20);
-            moves = dailyBase;
-            db.ref(`users/${userId}`).update({ moves: moves, streak: streak, lastPlayDate: today });
+            db.ref(`users/${userId}`).update({ moves: dailyBase, streak: streak, lastPlayDate: today });
         }
     }
 
@@ -347,6 +349,7 @@
         if (isDrawing && playerTrace.length > 15) {
             moves--;
             db.ref(`users/${userId}/moves`).set(moves);
+            db.ref('global_moves').transaction(v => (v || 0) + 1);
             evaluate();
         }
         isDrawing = false;
@@ -371,6 +374,20 @@
         });
         let score = Math.round(Math.max(0, 100 - ( (totalErr / normPlayer.length) * 12 )));
         showScore(score);
+
+        const today = new Date().toLocaleDateString();
+        db.ref(`users/${userId}`).once('value', snap => {
+            const me = snap.val() || {};
+            if (me.invitedBy) {
+                const bonusPath = `users/${me.invitedBy}/dailyBonuses/${userId}`;
+                db.ref(bonusPath).once('value', bSnap => {
+                    if (bSnap.val() !== today) {
+                        db.ref(`users/${me.invitedBy}/moves`).transaction(m => (m || 0) + 1);
+                        db.ref(bonusPath).set(today);
+                    }
+                });
+            }
+        });
         
         ctx.setLineDash([8, 8]); ctx.strokeStyle = 'rgba(255, 0, 255, 0.4)'; ctx.lineWidth = 2;
         ctx.beginPath();
