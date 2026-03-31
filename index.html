@@ -6,7 +6,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="Neon Knot">
     <link rel="apple-touch-icon" href="https://i.imgur.com/your-icon-512.png">
     <link rel="manifest" href="manifest.json">
     
@@ -14,7 +13,6 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
 
     <style>
-        /* Prevence gest a scrollování pro pocit aplikace */
         body, html { 
             margin: 0; padding: 0; width: 100%; height: 100%; 
             overflow: hidden; background-color: #050505; 
@@ -38,19 +36,17 @@
             padding: 10px; pointer-events: auto; 
         }
 
-        /* Oprava centrování úvodního okna */
         #login-overlay { 
             position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
             background: #000; z-index: 1000; 
             display: flex; align-items: center; justify-content: center; 
-            pointer-events: auto; 
         }
         
         .login-box { 
             text-align: center; width: 85%; max-width: 350px; 
             padding: 25px; border: 1px solid #ff00ff;
             box-shadow: 0 0 30px rgba(255, 0, 255, 0.2);
-            box-sizing: border-box; /* Klíčové pro správné centrování vnitřku */
+            box-sizing: border-box;
         }
 
         .login-input { 
@@ -100,7 +96,7 @@
             position: absolute; top: 130px; right: 20px; width: 70px; height: 70px; 
             border: 2px solid #ff00ff; border-radius: 12px; background: rgba(0,0,0,0.8); 
             display: flex; align-items: center; justify-content: center; 
-            box-shadow: 0 0 15px rgba(255,0,255,0.3); 
+            box-shadow: 0 0 15px rgba(255,0,255,0.3); pointer-events: auto;
         }
         #refCanvas { width: 60px; height: 60px; }
     </style>
@@ -110,20 +106,16 @@
 <div id="login-overlay">
     <div class="login-box glass-panel">
         <h1 style="color:#ff00ff; margin:0 0 15px 0; letter-spacing: 2px;">NEON KNOT</h1>
-        
         <div class="tutorial-box">
             <b>CO MÁŠ DĚLAT?</b>
             Obkresli vzorový obrazec (vpravo nahoře) jedním souvislým tahem. Trefuj rohy a drž se linie.
         </div>
-
         <input type="text" id="player-name-input" class="login-input" placeholder="Tvá přezdívka..." maxlength="12">
-        
         <div style="font-size: 10px; color: #777; margin-bottom: 20px; line-height: 1.4;">
             • Obnova tahů vždy o půlnoci<br>
             • Za každých 20 dní v řadě +1 tah navždy<br>
             • Za každého pozvaného kámoše +1 tah hned
         </div>
-
         <button class="btn btn-challenge" style="width:100%" onclick="savePlayerName()">START HRY</button>
     </div>
 </div>
@@ -154,11 +146,10 @@
             <button class="btn btn-challenge" onclick="shareGame('Sleduj můj tah!')">Sdílet</button>
         </div>
     </div>
-    <div id="reference-box"><canvas id="refCanvas" width="200" height="200"></canvas></div>
+    <div id="reference-box" onclick="drawRef()"><canvas id="refCanvas" width="200" height="200"></canvas></div>
 </div>
 
 <script>
-    // PWA Service Worker registration
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('sw.js').catch(() => {});
     }
@@ -208,6 +199,8 @@
 
     function initGame() {
         document.getElementById('menu-user-name').innerText = userName;
+        
+        // REÁLNÝ ČAS: Listener, který okamžitě aktualizuje tahy při změně v DB
         db.ref(`users/${userId}`).on('value', snap => {
             const data = snap.val() || {};
             streak = data.streak || 0;
@@ -215,6 +208,7 @@
             moves = data.moves || 0;
             checkMidnightReset(data.lastPlayDate);
             updateUI();
+            setTimeout(drawRef, 100); // Pro jistotu překreslíme vzor
         });
 
         db.ref('users').orderByChild('bestScore').limitToLast(10).on('value', snap => {
@@ -229,7 +223,6 @@
             });
             document.getElementById('friends-list').innerHTML = html;
         });
-        drawRef();
     }
 
     function checkMidnightReset(lastPlayDate) {
@@ -308,6 +301,7 @@
         if (cornersHit < 4) score *= 0.4;
         let finalScore = Math.round(Math.max(0, score));
         showScore(finalScore);
+        
         ctx.setLineDash([8, 8]); ctx.strokeStyle = 'rgba(255, 0, 255, 0.4)'; ctx.lineWidth = 2;
         ctx.beginPath();
         targetShape.forEach((p, i) => {
@@ -338,12 +332,15 @@
         ctx.clearRect(0,0,canvas.width, canvas.height);
         document.getElementById('result-container').style.display = 'none';
         isFinished = false;
+        drawRef();
     }
 
     function toggleMenu() { document.getElementById('side-menu').classList.toggle('open'); }
 
     function drawRef() {
-        const r = document.getElementById('refCanvas').getContext('2d');
+        const rCanvas = document.getElementById('refCanvas');
+        if(!rCanvas) return;
+        const r = rCanvas.getContext('2d');
         r.clearRect(0,0,200,200);
         r.shadowBlur = 15; r.shadowColor = '#ff00ff';
         r.strokeStyle = '#ff00ff'; r.lineWidth = 12; r.lineCap = 'round'; r.lineJoin = 'round';
@@ -353,6 +350,7 @@
         r.shadowBlur = 0; r.strokeStyle = '#fff'; r.lineWidth = 4; r.stroke();
     }
 
+    window.onload = () => { setTimeout(drawRef, 500); };
     window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; drawRef(); });
 
     async function shareGame(msg) {
