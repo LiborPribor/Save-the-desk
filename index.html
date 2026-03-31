@@ -140,7 +140,7 @@
 
 <div id="photo-overlay" onclick="this.style.display='none'">
     <img id="photo-img" src="">
-    <p id="photo-close-text" style="margin-top:20px; color:#ff00ff; font-weight:bold;">KLIKNI KAMKOLIV PRO ZAVŘENÍ</p>
+    <p style="margin-top:20px; color:#ff00ff; font-weight:bold;">KLIKNI KAMKOLIV PRO ZAVŘENÍ</p>
 </div>
 
 <canvas id="gameCanvas"></canvas>
@@ -172,13 +172,6 @@
 </div>
 
 <script>
-    // Jazyková detekce pro nápis pod fotkou
-    const userLang = navigator.language || navigator.userLanguage;
-    if (!userLang.startsWith('cs')) {
-        const closeText = document.getElementById('photo-close-text');
-        if(closeText) closeText.innerText = "CLICK ANYWHERE TO CLOSE";
-    }
-
     const firebaseConfig = {
         apiKey: "AIzaSyCnGuV53ZyxO1qU7G6zsVFqWuKPSndn_bQ",
         authDomain: "neon-desk.firebaseapp.com",
@@ -322,13 +315,11 @@
         ctx.textAlign = "center";
         ctx.fillText(score + "%", centerX, minY - 30);
 
-        // ULOŽENÍ FOTKY S KRÁTKÝM ZPOŽDĚNÍM PRO SPRÁVNÉ ZACHYCENÍ PLÁTNA
-        setTimeout(() => {
-            const photo = canvas.toDataURL("image/webp", 0.4);
-            if (score >= bestScore) {
-                db.ref(`users/${userId}`).update({ bestScore: score, bestPhoto: photo });
-            }
-        }, 50);
+        // ULOŽENÍ FOTKY S VYKRESLENÝMI PRVKY
+        const photo = canvas.toDataURL("image/webp", 0.4);
+        if (score >= bestScore) {
+            db.ref(`users/${userId}`).update({ bestScore: score, bestPhoto: photo });
+        }
         
         showScore(score);
     }
