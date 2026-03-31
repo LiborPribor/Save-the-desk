@@ -140,7 +140,7 @@
 
 <div id="photo-overlay" onclick="this.style.display='none'">
     <img id="photo-img" src="">
-    <p id="close-hint" style="margin-top:20px; color:#ff00ff; font-weight:bold;">KLIKNI KAMKOLIV PRO ZAVŘENÍ</p>
+    <p id="photo-close-text" style="margin-top:20px; color:#ff00ff; font-weight:bold;">KLIKNI KAMKOLIV PRO ZAVŘENÍ</p>
 </div>
 
 <canvas id="gameCanvas"></canvas>
@@ -172,10 +172,11 @@
 </div>
 
 <script>
-    // Detekce jazyka pro zavírací nápis
+    // Jazyková detekce pro nápis pod fotkou
     const userLang = navigator.language || navigator.userLanguage;
     if (!userLang.startsWith('cs')) {
-        document.getElementById('close-hint').innerText = "CLICK ANYWHERE TO CLOSE";
+        const closeText = document.getElementById('photo-close-text');
+        if(closeText) closeText.innerText = "CLICK ANYWHERE TO CLOSE";
     }
 
     const firebaseConfig = {
@@ -321,7 +322,7 @@
         ctx.textAlign = "center";
         ctx.fillText(score + "%", centerX, minY - 30);
 
-        // ULOŽENÍ FOTKY S KRÁTKÝM ZPOŽDĚNÍM (aby se vykreslil vzor výše)
+        // ULOŽENÍ FOTKY S KRÁTKÝM ZPOŽDĚNÍM PRO SPRÁVNÉ ZACHYCENÍ PLÁTNA
         setTimeout(() => {
             const photo = canvas.toDataURL("image/webp", 0.4);
             if (score >= bestScore) {
