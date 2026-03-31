@@ -2,7 +2,7 @@
 <html lang="cs">
 <head>
     <meta charset="UTF-8">
-    <title>NEON KNOT - SOCIAL EDITION</title>
+    <title>NEON KNOT - SOCIAL PRECISION</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
@@ -27,21 +27,20 @@
         #result-container { margin-top: 10px; text-align: center; display: none; pointer-events: auto; width: 100%; animation: fadeIn 0.3s ease; }
         #score-display { font-size: 60px; font-weight: 900; text-shadow: 0 0 20px #ff00ff; margin-bottom: 10px; line-height: 1; }
         
-        .action-btns { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+        .action-btns { display: flex; gap: 10px; justify-content: center; }
         .btn { border: none; padding: 12px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; text-transform: uppercase; }
         .btn-ok { background: #333; color: #fff; border: 1px solid #555; }
         .btn-challenge { background: #ff00ff; color: #fff; box-shadow: 0 0 15px rgba(255,0,255,0.4); }
 
         /* Login Overlay */
         #login-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 1000; display: flex; align-items: center; justify-content: center; pointer-events: auto; }
-        .login-box { text-align: center; width: 80%; max-width: 300px; }
+        .login-box { text-align: center; width: 85%; max-width: 320px; }
         .login-input { background: #111; border: 1px solid #ff00ff; padding: 15px; border-radius: 8px; color: #fff; width: 100%; margin-bottom: 15px; box-sizing: border-box; text-align: center; font-size: 18px; }
+        .info-text { font-size: 11px; color: #888; margin-bottom: 15px; line-height: 1.4; }
 
         #side-menu { position: absolute; top: 0; left: -100%; width: 85%; height: 100%; background: #0a0a0a; z-index: 100; transition: 0.3s; padding: 40px 20px; pointer-events: auto; border-right: 1px solid #ff00ff; box-sizing: border-box; overflow-y: auto; }
         #side-menu.open { left: 0; }
-        
-        .friends-list { margin-top: 20px; border-top: 1px solid #333; padding-top: 15px; }
-        .friend-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #1a1a1a; font-size: 14px; }
+        .friend-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #1a1a1a; font-size: 14px; }
         
         #reference-box { position: absolute; top: 130px; right: 20px; width: 65px; height: 65px; border: 1px solid #ff00ff; border-radius: 10px; background: rgba(255,0,255,0.05); display: flex; justify-content: center; align-items: center; }
         #refCanvas { width: 55px; height: 55px; }
@@ -53,8 +52,12 @@
 
 <div id="login-overlay">
     <div class="login-box glass-panel">
-        <h2 style="color:#ff00ff; margin-top:0">NEON KNOT</h2>
+        <h2 style="color:#ff00ff; margin-top:0; letter-spacing: 2px;">NEON KNOT</h2>
         <input type="text" id="player-name-input" class="login-input" placeholder="Zadej své jméno..." maxlength="12">
+        <div id="start-stats" class="info-text">
+            DOSTUPNÉ TAHY: <span id="avail-moves" style="color:#00ff00">NAČÍTÁNÍ...</span><br>
+            BONUS ZA 20 DNÍ: +1 TAH NAVŽDY
+        </div>
         <button class="btn btn-challenge" style="width:100%" onclick="savePlayerName()">VSTOUPIT DO HRY</button>
     </div>
 </div>
@@ -64,14 +67,12 @@
 <div id="side-menu">
     <div style="text-align:right; font-size:28px;" onclick="toggleMenu()">✕</div>
     <div style="font-size: 24px; font-weight: 900; color: #ff00ff;" id="menu-user-name">Hráč</div>
-    <div id="bonus-info" style="font-size: 10px; color: #00ff00; margin-bottom: 20px;">POKUSY NAVÍC: 0</div>
+    <div id="streak-info" style="color: #ffae00; margin: 10px 0;">🔥 <span id="menu-streak">0</span> DENNÍ ŘADA</div>
     
-    <button class="btn btn-challenge" style="width:100%" onclick="shareGame('Vyzývám tě na souboj v Neon Knot!')">VYZVAT KAMARÁDA</button>
+    <button class="btn btn-challenge" style="width:100%; margin: 15px 0;" onclick="shareGame('Vyzývám tě na souboj!')">VYZVAT KAMARÁDA</button>
 
-    <div class="friends-list">
-        <div style="font-size: 12px; color: #888; margin-bottom: 10px;">ŽEBRÁČEK PŘÁTEL (TOP 10)</div>
-        <div id="friends-data">Načítám přátele...</div>
-    </div>
+    <div style="font-size: 12px; color: #888; margin-top: 20px; border-top: 1px solid #333; padding-top: 15px;">ŽEBRÁČEK PŘÁTEL (TOP 10)</div>
+    <div id="friends-data" style="margin-top: 10px;">Načítám žebříček...</div>
 </div>
 
 <div id="ui">
@@ -87,7 +88,7 @@
         <div id="score-display">0%</div>
         <div class="action-btns">
             <button class="btn btn-ok" onclick="resetBoard()">Znovu</button>
-            <button class="btn btn-challenge" onclick="shareGame('Koukej na můj nejlepší pokus!')">Sdílet / Vyzvat</button>
+            <button class="btn btn-challenge" onclick="shareGame('Porazíš mě?')">Sdílet / Vyzvat</button>
         </div>
     </div>
 
@@ -109,7 +110,7 @@
     const userId = localStorage.getItem('neon_uid') || 'u_' + Math.random().toString(36).substr(2, 9);
     localStorage.setItem('neon_uid', userId);
 
-    // Pokud jméno už máme, schováme login hned
+    // Inicializace jména
     if (userName) {
         document.getElementById('login-overlay').style.display = 'none';
         document.getElementById('menu-user-name').innerText = userName;
@@ -124,11 +125,11 @@
             document.getElementById('login-overlay').style.display = 'none';
             db.ref(`users/${userId}/name`).set(userName);
         } else {
-            alert("Zadej prosím platné jméno.");
+            alert("Zadej prosím jméno (min. 2 znaky).");
         }
     }
 
-    // Denní řada
+    // Streak Logika
     function updateStreak() {
         const today = new Date().toDateString();
         const lastDate = localStorage.getItem('last_play_date');
@@ -147,7 +148,10 @@
             db.ref(`users/${userId}/streak`).set(streak);
         }
         document.getElementById('streak-val').innerText = streak;
-        document.getElementById('bonus-info').innerText = "POKUSY NAVÍC: " + Math.floor(streak / 20);
+        document.getElementById('menu-streak').innerText = streak;
+        
+        const moves = 1 + Math.floor(streak / 20);
+        document.getElementById('avail-moves').innerText = moves + (moves === 1 ? " TAH" : " TAHY");
     }
     updateStreak();
 
@@ -157,136 +161,19 @@
         document.getElementById('all-time-best').innerText = bestEver + "%";
     });
 
-    // Žebráček (Globální žebříček)
+    // Žebříček Top 10
     db.ref('users').orderByChild('bestScore').limitToLast(10).on('value', snap => {
-        const users = snap.val();
-        let list = [];
-        for (let id in users) list.push(users[id]);
-        list.sort((a,b) => b.bestScore - a.bestScore);
+        const data = snap.val();
+        let players = [];
+        for (let id in data) players.push(data[id]);
+        players.sort((a,b) => b.bestScore - a.bestScore);
         
         let html = '';
-        list.forEach(u => {
-            html += `<div class="friend-row"><span>${u.name || 'Anonym'}</span><span style="color:#ff00ff">${u.bestScore || 0}%</span></div>`;
+        players.forEach(p => {
+            html += `<div class="friend-row"><span>${p.name || 'Anonym'}</span><span style="color:#ff00ff">${p.bestScore || 0}%</span></div>`;
         });
         document.getElementById('friends-data').innerHTML = html;
     });
 
     const canvas = document.getElementById('gameCanvas');
-    const ctx = canvas.getContext('2d');
-    const targetShape = [{x:50,y:10},{x:85,y:40},{x:50,y:55},{x:15,y:70},{x:50,y:95},{x:85,y:70},{x:50,y:55},{x:15,y:40},{x:50,y:10}];
-    
-    let playerTrace = [], isDrawing = false, isFinished = false;
-    canvas.width = window.innerWidth; canvas.height = window.innerHeight;
-
-    canvas.addEventListener('touchstart', e => {
-        if (isFinished || !userName) return;
-        if (!isDrawing) { ctx.clearRect(0,0,canvas.width, canvas.height); playerTrace = []; }
-        isDrawing = true;
-        playerTrace.push({x: e.touches[0].clientX, y: e.touches[0].clientY});
-    });
-
-    canvas.addEventListener('touchmove', e => {
-        if (!isDrawing) return;
-        const t = e.touches[0];
-        const last = playerTrace[playerTrace.length-1];
-        ctx.strokeStyle = '#fff'; ctx.lineWidth = 5; ctx.shadowBlur = 15; ctx.shadowColor = '#ff00ff'; ctx.lineCap = 'round';
-        ctx.beginPath(); ctx.moveTo(last.x, last.y); ctx.lineTo(t.clientX, t.clientY); ctx.stroke();
-        playerTrace.push({x: t.clientX, y: t.clientY});
-    });
-
-    canvas.addEventListener('touchend', () => {
-        if (isDrawing && playerTrace.length > 15) evaluate();
-        isDrawing = false;
-    });
-
-    // --- ZACHOVANÁ LOGIKA HODNOCENÍ ---
-    function evaluate() {
-        isFinished = true;
-        let minX = Math.min(...playerTrace.map(p=>p.x)), maxX = Math.max(...playerTrace.map(p=>p.x));
-        let minY = Math.min(...playerTrace.map(p=>p.y)), maxY = Math.max(...playerTrace.map(p=>p.y));
-        let drawW = maxX - minX, drawH = maxY - minY;
-        
-        if (drawW < 80 || drawH < 80) { showScore(0); return; }
-
-        let size = Math.max(drawW, drawH, 50);
-        let centerX = minX + drawW / 2;
-        let centerY = minY + drawH / 2;
-        const normPlayer = playerTrace.map(p => ({ x: ((p.x - centerX) / size) * 80 + 50, y: ((p.y - centerY) / size) * 80 + 50 }));
-
-        let totalErr = 0;
-        normPlayer.forEach(p => {
-            let minDist = Infinity;
-            for(let i=0; i<targetShape.length-1; i++) {
-                let d = distToSegment(p, targetShape[i], targetShape[i+1]);
-                if (d < minDist) minDist = d;
-            }
-            totalErr += minDist;
-        });
-        let avgErr = totalErr / normPlayer.length;
-        const corners = [{x:50,y:10}, {x:85,y:40}, {x:50,y:95}, {x:15,y:40}];
-        let cornersHit = 0;
-        corners.forEach(c => { if (normPlayer.some(p => Math.hypot(p.x - c.x, p.y - c.y) < 14)) cornersHit++; });
-        
-        let distances = normPlayer.map(p => Math.hypot(p.x - 50, p.y - 50));
-        let maxR = Math.max(...distances), minR = Math.min(...distances);
-        let radiusVariance = maxR - minR;
-
-        let score = 100 - (avgErr * 12);
-        if (cornersHit < 4) score *= 0.4;
-        if (radiusVariance < 15) score *= 0.2;
-        if (avgErr > 10) score *= 0.5;
-
-        let finalScore = Math.round(Math.max(0, score));
-        showScore(finalScore);
-
-        // Screenshot label
-        ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
-        ctx.font = "bold 16px Segoe UI";
-        ctx.textAlign = "center";
-        ctx.fillText(userName.toUpperCase() + " • " + finalScore + "%", canvas.width/2, canvas.height - 40);
-    }
-
-    function distToSegment(p, v, w) {
-        let l2 = Math.hypot(v.x - w.x, v.y - w.y)**2;
-        if (l2 == 0) return Math.hypot(p.x - v.x, p.y - v.y);
-        let t = Math.max(0, Math.min(1, ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / l2));
-        return Math.hypot(p.x - (v.x + t * (w.x - v.x)), p.y - (v.y + t * (w.y - v.y)));
-    }
-
-    function showScore(s) {
-        document.getElementById('result-container').style.display = 'block';
-        let curr = 0;
-        const itv = setInterval(() => {
-            document.getElementById('score-display').innerText = curr + "%";
-            if(curr >= s) clearInterval(itv);
-            curr++;
-        }, 15);
-        if(s > bestEver) db.ref(`users/${userId}/bestScore`).set(s);
-    }
-
-    function resetBoard() {
-        ctx.clearRect(0,0,canvas.width, canvas.height);
-        document.getElementById('result-container').style.display = 'none';
-        isFinished = false;
-    }
-
-    function toggleMenu() { document.getElementById('side-menu').classList.toggle('open'); }
-    function drawRef() {
-        const r = document.getElementById('refCanvas').getContext('2d');
-        r.clearRect(0,0,200,200); r.strokeStyle='#ff00ff'; r.lineWidth=12; r.lineCap='round';
-        r.beginPath(); r.moveTo(targetShape[0].x*2, targetShape[0].y*2);
-        targetShape.forEach(p => r.lineTo(p.x*2, p.y*2)); r.stroke();
-    }
-    drawRef();
-
-    function shareGame(msg) {
-        const text = `${msg} Jsem ${userName} a dal jsem ${bestEver}%. Porazíš mě?`;
-        if (navigator.share) {
-            navigator.share({ title: 'Neon Knot Challenge', text: text, url: window.location.href });
-        } else {
-            prompt("Zkopíruj a pošli výzvu:", text);
-        }
-    }
-</script>
-</body>
-</html>
+    const ctx
