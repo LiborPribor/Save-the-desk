@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="https://i.imgur.com/your-icon-512.png">
     
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
@@ -19,19 +20,6 @@
             position: fixed;
         }
         
-        /* Zámek orientace - upozornění */
-        #portrait-lock {
-            display: none;
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: #000; z-index: 9999;
-            flex-direction: column; align-items: center; justify-content: center;
-            text-align: center; color: #ff00ff; padding: 20px;
-        }
-
-        @media (orientation: landscape) {
-            #portrait-lock { display: flex; }
-        }
-
         canvas#gameCanvas { display: block; position: absolute; top: 0; left: 0; z-index: 1; }
         
         #ui { 
@@ -84,6 +72,7 @@
         .stat-label { font-size: 8px; color: #888; text-transform: uppercase; }
         .stat-value { font-size: 15px; font-weight: 900; color: #ff00ff; display: block; }
         .moves-count { color: #00ffff !important; }
+        .global-count { color: #ffffff !important; }
 
         #side-menu { 
             position: absolute; top: 0; left: -100%; width: 85%; height: 100%; 
@@ -93,8 +82,17 @@
         }
         #side-menu.open { left: 0; }
         
+        .info-section {
+            margin: 20px 0; padding: 15px; background: rgba(255,255,255,0.03);
+            border-radius: 10px; border-left: 3px solid #ff00ff;
+        }
+        .info-header { display: flex; align-items: center; gap: 10px; color: #ff00ff; font-weight: bold; margin-bottom: 10px; }
+        .info-icon { width: 20px; height: 20px; border: 1px solid #ff00ff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; }
+
         .friend-row { display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #1a1a1a; font-size: 13px; align-items: center; cursor: pointer; }
+        .friend-row:active { background: rgba(255, 255, 255, 0.05); }
         .friend-row.me { background: rgba(255, 0, 255, 0.15); color: #ff00ff; font-weight: bold; border-radius: 5px; }
+        .score-link { color: #ff00ff; text-decoration: underline; }
 
         #result-container { margin-top: 10px; text-align: center; display: none; }
         #score-display { font-size: 60px; font-weight: 900; color: #ff00ff; text-shadow: 0 0 20px rgba(255,0,255,0.5); }
@@ -117,14 +115,19 @@
             align-items: center; justify-content: center; flex-direction: column;
         }
         #photo-img { max-width: 90%; max-height: 70%; border: 2px solid #ff00ff; border-radius: 10px; }
+
+        #lang-switcher {
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+            display: flex; gap: 10px; pointer-events: auto; z-index: 20;
+        }
+        .lang-btn {
+            background: rgba(255, 0, 255, 0.1); border: 1px solid rgba(255, 0, 255, 0.3);
+            color: #888; padding: 5px 10px; border-radius: 5px; font-size: 10px; cursor: pointer;
+        }
+        .lang-btn.active { color: #ff00ff; border-color: #ff00ff; background: rgba(255, 0, 255, 0.2); }
     </style>
 </head>
 <body>
-
-<div id="portrait-lock">
-    <h1>🔄</h1>
-    <p>Prosím, otoč telefon na výšku.</p>
-</div>
 
 <div id="login-overlay">
     <div class="login-box glass-panel">
@@ -132,6 +135,9 @@
         <div class="tutorial-box">
             <b id="tut-h-1">CO MÁŠ DĚLAT?</b>
             <span id="tut-t-1">Obkresli vzor (vpravo nahoře) jedním souvislým tahem.</span>
+            <br><br>
+            <b id="tut-h-2">JAK ZÍSKAT TAHY NAVÍC?</b>
+            <span id="tut-t-2">Klikni na "Pozvat kámoše" a pošli link. Tah se přičte až kamarád odehraje..</span>
         </div>
         <input type="text" id="player-name-input" class="login-input" placeholder="..." maxlength="12">
         <button class="btn btn-challenge" style="width:100%" onclick="savePlayerName()" id="btn-start">START HRY</button>
@@ -147,8 +153,21 @@
 
 <div id="side-menu">
     <div style="text-align:right; font-size:28px;" onclick="toggleMenu()">✕</div>
-    <h2 id="menu-user-name" style="color:#ff00ff;">Hráč</h2>
+    <h2 id="menu-user-name" style="color:#ff00ff; margin-bottom: 10px;">Hráč</h2>
+    
+    <div class="info-section">
+        <div class="info-header"><div class="info-icon">i</div> <span id="menu-info-title">Instrukce</span></div>
+        <div style="font-size: 11px; color: #ccc; line-height: 1.5;" id="menu-info-body">
+            <b>CO DĚLAT?</b><br>Obkresli vzor jedním tahem.<br><br>
+            <b>REKORDY:</b><br>Kliknutím na řádek v žebříčku zobrazíš fotku pokusu.<br><br>
+            <b>BONUSY:</b><br>Sdílej svůj link. Tah se přičte až kamarád odehraje..<br><br>
+            <b>ŘADA:</b><br>Hraj každý den. Za každých 20 dní získáš +1 základní tah navždy.
+        </div>
+    </div>
+
     <button class="btn btn-challenge" style="width:100%; margin-bottom: 25px;" onclick="shareGame()" id="btn-invite">POZVAT KÁMOŠE (+1 TAH)</button>
+    
+    <div style="font-size: 11px; color: #888; text-transform: uppercase; margin-bottom: 10px;" id="menu-top10">TOP 10 ŽEBŘÍČEK</div>
     <div id="friends-list"></div>
 </div>
 
@@ -156,19 +175,25 @@
     <div id="top-row">
         <div id="menu-btn" class="glass-panel" onclick="toggleMenu()">☰</div>
         <div id="stats-bar" class="glass-panel">
-            <div class="stat-item"><span class="stat-label">Tahy</span><span id="moves-display" class="stat-value moves-count">0</span></div>
-            <div class="stat-item"><span class="stat-label">Best</span><span id="best-display" class="stat-value">0%</span></div>
-            <div class="stat-item"><span class="stat-label">Řada</span><span id="streak-display" class="stat-value">🔥 0</span></div>
+            <div class="stat-item"><span class="stat-label" id="label-moves">Tahy</span><span id="moves-display" class="stat-value moves-count">0</span></div>
+            <div class="stat-item"><span class="stat-label" id="label-best">Best</span><span id="best-display" class="stat-value">0%</span></div>
+            <div class="stat-item"><span class="stat-label" id="label-streak">Řada</span><span id="streak-display" class="stat-value">🔥 0</span></div>
+            <div class="stat-item"><span class="stat-label" id="label-global">Svět</span><span id="global-display" class="stat-value global-count">0</span></div>
         </div>
     </div>
     <div id="result-container" class="glass-panel">
         <div id="score-display">0%</div>
         <div style="display:flex; gap:10px; justify-content:center;">
-            <button class="btn btn-ok" onclick="resetBoard()">Znovu</button>
-            <button class="btn btn-challenge" onclick="shareGame()">Sdílet</button>
+            <button class="btn btn-ok" onclick="resetBoard()" id="btn-again">Znovu</button>
+            <button class="btn btn-challenge" onclick="shareGame()" id="btn-share">Sdílet</button>
         </div>
     </div>
-    <div id="reference-box"><canvas id="refCanvas" width="200" height="200"></canvas></div>
+    <div id="reference-box" onclick="drawRef()"><canvas id="refCanvas" width="200" height="200"></canvas></div>
+
+    <div id="lang-switcher">
+        <div class="lang-btn" id="lang-cz" onclick="setLang('cz')">CZ</div>
+        <div class="lang-btn" id="lang-en" onclick="setLang('en')">EN</div>
+    </div>
 </div>
 
 <script>
@@ -182,10 +207,60 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
     
+    let currentLang = localStorage.getItem('neon_lang') || 'cz';
+    const texts = {
+        cz: {
+            tutH1: "CO MÁŠ DĚLAT?", tutT1: "Obkresli vzor (vpravo nahoře) jedním souvislým tahem.",
+            tutH2: "JAK ZÍSKAT TAHY NAVÍC?", tutT2: "Klikni na 'Pozvat kámoše'. Tah se přičte až kamarád odehraje..",
+            start: "START HRY", invite: "POZVAT KÁMOŠE (+1 TAH)", top10: "TOP 10 ŽEBŘÍČEK",
+            labelMoves: "Tahy", labelBest: "Best", labelStreak: "Řada", labelGlobal: "Svět", again: "Znovu", share: "Sdílet",
+            nickPlaceholder: "Tvá přezdívka...", infoTitle: "Instrukce", 
+            infoBody: "<b>CO DĚLAT?</b><br>Obkresli vzor jedním tahem.<br><br><b>REKORDY:</b><br>Kliknutím na řádek v žebříčku zobrazíš fotku pokusu.<br><br><b>BONUSY:</b><br>Sdílej svůj link. Tah se přičte až kamarád odehraje..<br><br><b>ŘADA:</b><br>Hraj každý den. Za každých 20 dní získáš +1 tah navždy.",
+            alertNoMoves: "Dnes už jsi vyčerpal tahy. Přijď po půlnoci!", shareMsg: "Koukni na můj pokus!"
+        },
+        en: {
+            tutH1: "HOW TO PLAY?", tutT1: "Trace the pattern (top right) in one continuous stroke.",
+            tutH2: "GET EXTRA MOVES?", tutT2: "Click 'Invite Friends'. Move added after your friend plays..",
+            start: "START GAME", invite: "INVITE FRIENDS (+1 MOVE)", top10: "TOP 10 RANKING",
+            labelMoves: "Moves", labelBest: "Best", labelStreak: "Streak", labelGlobal: "World", again: "Again", share: "Share",
+            nickPlaceholder: "Your nickname...", infoTitle: "Instructions",
+            infoBody: "<b>HOW TO PLAY?</b><br>Trace the pattern in one go.<br><br><b>RECORDS:</b><br>Click any row in the ranking to see the attempt photo.<br><br><b>BONUSES:</b><br>Share your link. Moves added after friends play..<br><br><b>STREAK:</b><br>Play daily. Every 20 days gives you +1 move forever.",
+            alertNoMoves: "No moves left today. Come back after midnight!", shareMsg: "Check my attempt!"
+        }
+    };
+
+    function setLang(l) {
+        currentLang = l;
+        localStorage.setItem('neon_lang', l);
+        document.querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById('lang-' + l).classList.add('active');
+        const t = texts[l];
+        document.getElementById('tut-h-1').innerText = t.tutH1;
+        document.getElementById('tut-t-1').innerText = t.tutT1;
+        document.getElementById('tut-h-2').innerText = t.tutH2;
+        document.getElementById('tut-t-2').innerText = t.tutT2;
+        document.getElementById('btn-start').innerText = t.start;
+        document.getElementById('btn-invite').innerText = t.invite;
+        document.getElementById('menu-top10').innerText = t.top10;
+        document.getElementById('label-moves').innerText = t.labelMoves;
+        document.getElementById('label-best').innerText = t.labelBest;
+        document.getElementById('label-streak').innerText = t.labelStreak;
+        document.getElementById('label-global').innerText = t.labelGlobal;
+        document.getElementById('btn-again').innerText = t.again;
+        document.getElementById('btn-share').innerText = t.share;
+        document.getElementById('player-name-input').placeholder = t.nickPlaceholder;
+        document.getElementById('menu-info-title').innerText = t.infoTitle;
+        document.getElementById('menu-info-body').innerHTML = t.infoBody;
+    }
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const referrer = urlParams.get('ref');
     let userId = localStorage.getItem('neon_uid') || 'u_' + Math.random().toString(36).substr(2, 9);
     localStorage.setItem('neon_uid', userId);
     let userName = localStorage.getItem('neon_name');
     let moves = 0, streak = 0, bestScore = 0;
+
+    setLang(currentLang);
 
     if (userName) {
         document.getElementById('login-overlay').style.display = 'none';
@@ -198,7 +273,8 @@
             userName = name;
             localStorage.setItem('neon_name', name);
             document.getElementById('login-overlay').style.display = 'none';
-            db.ref(`users/${userId}`).update({ name: userName });
+            db.ref(`users/${userId}`).update({ name: userName, invitedBy: referrer || null });
+            if (!moves) db.ref(`users/${userId}/moves`).set(1);
             initGame();
         }
     }
@@ -210,8 +286,13 @@
             streak = data.streak || 0;
             bestScore = data.bestScore || 0;
             moves = data.moves || 0;
+            checkMidnightReset(data.lastPlayDate);
             updateUI();
-            drawRef();
+            setTimeout(drawRef, 150);
+        });
+
+        db.ref('global_moves').on('value', snap => {
+            document.getElementById('global-display').innerText = snap.val() || 0;
         });
 
         db.ref('users').orderByChild('bestScore').limitToLast(10).on('value', snap => {
@@ -222,7 +303,8 @@
             let html = '';
             list.forEach(u => {
                 const isMe = u.id === userId ? 'me' : '';
-                html += `<div class="friend-row ${isMe}" onclick="viewPhoto('${u.id}')"><span>${u.name || '...'}</span><b>${u.bestScore || 0}%</b></div>`;
+                // Onclick přesunuto na celý řádek
+                html += `<div class="friend-row ${isMe}" onclick="viewPhoto('${u.id}')"><span>${u.name || '...'}</span><b class="score-link">${u.bestScore || 0}%</b></div>`;
             });
             document.getElementById('friends-list').innerHTML = html;
         });
@@ -236,6 +318,17 @@
                 document.getElementById('photo-overlay').style.display = 'flex';
             }
         });
+    }
+
+    function checkMidnightReset(lastPlayDate) {
+        const today = new Date().toLocaleDateString();
+        if (lastPlayDate !== today) {
+            const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
+            const yesterdayStr = yesterday.toLocaleDateString();
+            if (lastPlayDate === yesterdayStr) streak++; else streak = 1;
+            let dailyBase = 1 + Math.floor(streak / 20);
+            db.ref(`users/${userId}`).update({ moves: dailyBase, streak: streak, lastPlayDate: today });
+        }
     }
 
     function updateUI() {
@@ -270,6 +363,7 @@
         if (isDrawing && playerTrace.length > 15) {
             moves--;
             db.ref(`users/${userId}/moves`).set(moves);
+            db.ref('global_moves').transaction(v => (v || 0) + 1);
             evaluate();
         }
         isDrawing = false;
@@ -282,7 +376,6 @@
         let size = Math.max(maxX - minX, maxY - minY, 50);
         let centerX = minX + (maxX - minX) / 2;
         let centerY = minY + (maxY - minY) / 2;
-        
         const normPlayer = playerTrace.map(p => ({ x: ((p.x - centerX) / size) * 80 + 50, y: ((p.y - centerY) / size) * 80 + 50 }));
         let totalErr = 0;
         normPlayer.forEach(p => {
@@ -294,34 +387,36 @@
             totalErr += minDist;
         });
         let score = Math.round(Math.max(0, 100 - ( (totalErr / normPlayer.length) * 12 )));
+        
+        const photo = canvas.toDataURL("image/webp", 0.3);
+        if (score >= bestScore) {
+            db.ref(`users/${userId}`).update({ bestScore: score, bestPhoto: photo });
+        }
+        
+        showScore(score);
 
-        // VYKRESLENÍ VZORU A PROCENT NA CANVAS PRO "FOTKU"
-        ctx.shadowBlur = 0;
-        ctx.setLineDash([8, 8]); 
-        ctx.strokeStyle = 'rgba(255, 0, 255, 0.6)'; 
-        ctx.lineWidth = 3;
+        const today = new Date().toLocaleDateString();
+        db.ref(`users/${userId}`).once('value', snap => {
+            const me = snap.val() || {};
+            if (me.invitedBy) {
+                const bonusPath = `users/${me.invitedBy}/dailyBonuses/${userId}`;
+                db.ref(bonusPath).once('value', bSnap => {
+                    if (bSnap.val() !== today) {
+                        db.ref(`users/${me.invitedBy}/moves`).transaction(m => (m || 0) + 1);
+                        db.ref(bonusPath).set(today);
+                    }
+                });
+            }
+        });
+        
+        ctx.setLineDash([8, 8]); ctx.strokeStyle = 'rgba(255, 0, 255, 0.4)'; ctx.lineWidth = 2;
         ctx.beginPath();
         targetShape.forEach((p, i) => {
             let rx = ((p.x - 50) / 80) * size + centerX;
             let ry = ((p.y - 50) / 80) * size + centerY;
             i === 0 ? ctx.moveTo(rx, ry) : ctx.lineTo(rx, ry);
         });
-        ctx.stroke();
-        ctx.setLineDash([]);
-
-        // Vykreslení textu skóre na plátno
-        ctx.fillStyle = "#ff00ff";
-        ctx.font = "bold 40px Segoe UI";
-        ctx.textAlign = "center";
-        ctx.fillText(score + "%", centerX, minY - 30);
-
-        // ULOŽENÍ FOTKY S VYKRESLENÝMI PRVKY
-        const photo = canvas.toDataURL("image/webp", 0.4);
-        if (score >= bestScore) {
-            db.ref(`users/${userId}`).update({ bestScore: score, bestPhoto: photo });
-        }
-        
-        showScore(score);
+        ctx.stroke(); ctx.setLineDash([]);
     }
 
     function distToSegment(p, v, w) {
@@ -337,7 +432,7 @@
     }
 
     function resetBoard() {
-        if (moves <= 0) return;
+        if (moves <= 0) { alert(texts[currentLang].alertNoMoves); return; }
         ctx.clearRect(0,0,canvas.width, canvas.height);
         document.getElementById('result-container').style.display = 'none';
         isFinished = false;
@@ -348,6 +443,7 @@
 
     function drawRef() {
         const rCanvas = document.getElementById('refCanvas');
+        if(!rCanvas) return;
         const r = rCanvas.getContext('2d');
         r.clearRect(0,0,200,200);
         r.shadowBlur = 15; r.shadowColor = '#ff00ff';
@@ -358,9 +454,27 @@
         r.shadowBlur = 0; r.strokeStyle = '#fff'; r.lineWidth = 4; r.stroke();
     }
 
-    function shareGame() {
+    async function shareGame() {
         const shareUrl = window.location.origin + window.location.pathname + '?ref=' + userId;
-        prompt("Sdílej link:", shareUrl);
+        const msg = texts[currentLang].shareMsg + ` Skóre: ${bestScore}%`;
+        
+        try {
+            const blob = await (await fetch(canvas.toDataURL())).blob();
+            const file = new File([blob], 'attempt.png', { type: blob.type });
+            
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                await navigator.share({
+                    files: [file],
+                    title: 'Neon Knot',
+                    text: msg,
+                    url: shareUrl
+                });
+            } else {
+                await navigator.share({ title: 'Neon Knot', text: msg, url: shareUrl });
+            }
+        } catch (e) {
+            prompt(currentLang === 'cz' ? "Link:" : "Link:", shareUrl);
+        }
     }
 
     window.onload = () => { setTimeout(drawRef, 500); };
