@@ -71,7 +71,7 @@
         .stat-item { text-align: center; }
         .stat-label { font-size: 8px; color: #888; text-transform: uppercase; }
         .stat-value { font-size: 15px; font-weight: 900; color: #ff00ff; display: block; }
-        .moves-count { color: #00ffff !important; } /* AZUROVÁ */
+        .moves-count { color: #00ffff !important; }
         .global-count { color: #ffffff !important; }
 
         #side-menu { 
@@ -89,8 +89,9 @@
         .info-header { display: flex; align-items: center; gap: 10px; color: #ff00ff; font-weight: bold; margin-bottom: 10px; }
         .info-icon { width: 20px; height: 20px; border: 1px solid #ff00ff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; }
 
-        .friend-row { display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #1a1a1a; font-size: 13px; }
+        .friend-row { display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #1a1a1a; font-size: 13px; align-items: center; }
         .friend-row.me { background: rgba(255, 0, 255, 0.15); color: #ff00ff; font-weight: bold; border-radius: 5px; }
+        .score-link { color: #ff00ff; text-decoration: underline; cursor: pointer; }
 
         #result-container { margin-top: 10px; text-align: center; display: none; }
         #score-display { font-size: 60px; font-weight: 900; color: #ff00ff; text-shadow: 0 0 20px rgba(255,0,255,0.5); }
@@ -107,6 +108,14 @@
         }
         #refCanvas { width: 60px; height: 60px; }
 
+        /* Fullscreen prohlížeč pokusu */
+        #photo-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.95); z-index: 2000; display: none;
+            align-items: center; justify-content: center; flex-direction: column;
+        }
+        #photo-img { max-width: 90%; max-height: 70%; border: 2px solid #ff00ff; border-radius: 10px; }
+
         #lang-switcher {
             position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
             display: flex; gap: 10px; pointer-events: auto; z-index: 20;
@@ -114,7 +123,6 @@
         .lang-btn {
             background: rgba(255, 0, 255, 0.1); border: 1px solid rgba(255, 0, 255, 0.3);
             color: #888; padding: 5px 10px; border-radius: 5px; font-size: 10px; cursor: pointer;
-            transition: 0.3s;
         }
         .lang-btn.active { color: #ff00ff; border-color: #ff00ff; background: rgba(255, 0, 255, 0.2); }
     </style>
@@ -132,13 +140,13 @@
             <span id="tut-t-2">Klikni na "Pozvat kámoše" a pošli link. Tah se přičte až kamarád odehraje..</span>
         </div>
         <input type="text" id="player-name-input" class="login-input" placeholder="..." maxlength="12">
-        <div style="font-size: 10px; color: #777; margin-bottom: 20px; line-height: 1.4;" id="login-bullets">
-            • Obnova tahů vždy o půlnoci<br>
-            • Za každých 20 dní v řadě +1 tah navždy<br>
-            • Za každého aktivního kámoše +1 tah ihned
-        </div>
         <button class="btn btn-challenge" style="width:100%" onclick="savePlayerName()" id="btn-start">START HRY</button>
     </div>
+</div>
+
+<div id="photo-overlay" onclick="this.style.display='none'">
+    <img id="photo-img" src="">
+    <p style="margin-top:20px; color:#ff00ff; font-weight:bold;">KLIKNI KAMKOLIV PRO ZAVŘENÍ</p>
 </div>
 
 <canvas id="gameCanvas"></canvas>
@@ -151,6 +159,7 @@
         <div class="info-header"><div class="info-icon">i</div> <span id="menu-info-title">Instrukce</span></div>
         <div style="font-size: 11px; color: #ccc; line-height: 1.5;" id="menu-info-body">
             <b>CO DĚLAT?</b><br>Obkresli vzor jedním tahem.<br><br>
+            <b>REKORDY:</b><br>Kliknutím na skóre v žebříčku zobrazíš fotku pokusu.<br><br>
             <b>BONUSY:</b><br>Sdílej svůj link. Tah se přičte až kamarád odehraje..<br><br>
             <b>ŘADA:</b><br>Hraj každý den. Za každých 20 dní získáš +1 základní tah navždy.
         </div>
@@ -203,22 +212,20 @@
         cz: {
             tutH1: "CO MÁŠ DĚLAT?", tutT1: "Obkresli vzor (vpravo nahoře) jedním souvislým tahem.",
             tutH2: "JAK ZÍSKAT TAHY NAVÍC?", tutT2: "Klikni na 'Pozvat kámoše'. Tah se přičte až kamarád odehraje..",
-            bullets: "• Obnova tahů vždy o půlnoci<br>• Za každých 20 dní v řadě +1 tah navždy<br>• Za každého aktivního kámoše +1 tah ihned",
             start: "START HRY", invite: "POZVAT KÁMOŠE (+1 TAH)", top10: "TOP 10 ŽEBŘÍČEK",
             labelMoves: "Tahy", labelBest: "Best", labelStreak: "Řada", labelGlobal: "Svět", again: "Znovu", share: "Sdílet",
             nickPlaceholder: "Tvá přezdívka...", infoTitle: "Instrukce", 
-            infoBody: "<b>CO DĚLAT?</b><br>Obkresli vzor jedním tahem.<br><br><b>BONUSY:</b><br>Sdílej svůj link. Tah se přičte až kamarád odehraje..<br><br><b>ŘADA:</b><br>Hraj každý den. Za každých 20 dní získáš +1 tah navždy.",
-            alertNoMoves: "Dnes už jsi vyčerpal tahy. Přijď po půlnoci!", shareMsg: "Sleduj můj tah!"
+            infoBody: "<b>CO DĚLAT?</b><br>Obkresli vzor jedním tahem.<br><br><b>REKORDY:</b><br>Kliknutím na skóre v žebříčku zobrazíš fotku pokusu.<br><br><b>BONUSY:</b><br>Sdílej svůj link. Tah se přičte až kamarád odehraje..<br><br><b>ŘADA:</b><br>Hraj každý den. Za každých 20 dní získáš +1 tah navždy.",
+            alertNoMoves: "Dnes už jsi vyčerpal tahy. Přijď po půlnoci!", shareMsg: "Koukni na můj pokus!"
         },
         en: {
             tutH1: "HOW TO PLAY?", tutT1: "Trace the pattern (top right) in one continuous stroke.",
             tutH2: "GET EXTRA MOVES?", tutT2: "Click 'Invite Friends'. Move added after your friend plays..",
-            bullets: "• Moves reset at midnight<br>• Every 20-day streak grants +1 perm move<br>• +1 move for every active friend instantly",
             start: "START GAME", invite: "INVITE FRIENDS (+1 MOVE)", top10: "TOP 10 RANKING",
             labelMoves: "Moves", labelBest: "Best", labelStreak: "Streak", labelGlobal: "World", again: "Again", share: "Share",
             nickPlaceholder: "Your nickname...", infoTitle: "Instructions",
-            infoBody: "<b>HOW TO PLAY?</b><br>Trace the pattern in one go.<br><br><b>BONUSES:</b><br>Share your link. Moves added after friends play..<br><br><b>STREAK:</b><br>Play daily. Every 20 days gives you +1 move forever.",
-            alertNoMoves: "No moves left today. Come back after midnight!", shareMsg: "Check my move!"
+            infoBody: "<b>HOW TO PLAY?</b><br>Trace the pattern in one go.<br><br><b>RECORDS:</b><br>Click the score in the ranking to see the attempt photo.<br><br><b>BONUSES:</b><br>Share your link. Moves added after friends play..<br><br><b>STREAK:</b><br>Play daily. Every 20 days gives you +1 move forever.",
+            alertNoMoves: "No moves left today. Come back after midnight!", shareMsg: "Check my attempt!"
         }
     };
 
@@ -227,13 +234,11 @@
         localStorage.setItem('neon_lang', l);
         document.querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active'));
         document.getElementById('lang-' + l).classList.add('active');
-        
         const t = texts[l];
         document.getElementById('tut-h-1').innerText = t.tutH1;
         document.getElementById('tut-t-1').innerText = t.tutT1;
         document.getElementById('tut-h-2').innerText = t.tutH2;
         document.getElementById('tut-t-2').innerText = t.tutT2;
-        document.getElementById('login-bullets').innerHTML = t.bullets;
         document.getElementById('btn-start').innerText = t.start;
         document.getElementById('btn-invite').innerText = t.invite;
         document.getElementById('menu-top10').innerText = t.top10;
@@ -269,9 +274,7 @@
             localStorage.setItem('neon_name', name);
             document.getElementById('login-overlay').style.display = 'none';
             db.ref(`users/${userId}`).update({ name: userName, invitedBy: referrer || null });
-            if (!moves) {
-                db.ref(`users/${userId}/moves`).set(1);
-            }
+            if (!moves) db.ref(`users/${userId}/moves`).set(1);
             initGame();
         }
     }
@@ -300,9 +303,19 @@
             let html = '';
             list.forEach(u => {
                 const isMe = u.id === userId ? 'me' : '';
-                html += `<div class="friend-row ${isMe}"><span>${u.name || '...'}</span><b>${u.bestScore || 0}%</b></div>`;
+                html += `<div class="friend-row ${isMe}"><span>${u.name || '...'}</span><b class="score-link" onclick="viewPhoto('${u.id}')">${u.bestScore || 0}%</b></div>`;
             });
             document.getElementById('friends-list').innerHTML = html;
+        });
+    }
+
+    function viewPhoto(id) {
+        db.ref(`users/${id}/bestPhoto`).once('value', snap => {
+            const val = snap.val();
+            if (val) {
+                document.getElementById('photo-img').src = val;
+                document.getElementById('photo-overlay').style.display = 'flex';
+            }
         });
     }
 
@@ -373,6 +386,13 @@
             totalErr += minDist;
         });
         let score = Math.round(Math.max(0, 100 - ( (totalErr / normPlayer.length) * 12 )));
+        
+        // Uložení fotky pokusu (zmenšené pro DB)
+        const photo = canvas.toDataURL("image/webp", 0.3);
+        if (score >= bestScore) {
+            db.ref(`users/${userId}`).update({ bestScore: score, bestPhoto: photo });
+        }
+        
         showScore(score);
 
         const today = new Date().toLocaleDateString();
@@ -409,7 +429,6 @@
     function showScore(s) {
         document.getElementById('result-container').style.display = 'block';
         document.getElementById('score-display').innerText = s + "%";
-        if (s > bestScore) db.ref(`users/${userId}/bestScore`).set(s);
     }
 
     function resetBoard() {
@@ -437,10 +456,25 @@
 
     async function shareGame() {
         const shareUrl = window.location.origin + window.location.pathname + '?ref=' + userId;
-        const msg = texts[currentLang].shareMsg;
-        if (navigator.share) {
-            navigator.share({ title: 'Neon Knot', text: `${msg} Score: ${bestScore}%`, url: shareUrl });
-        } else { prompt(currentLang === 'cz' ? "Link:" : "Link:", shareUrl); }
+        const msg = texts[currentLang].shareMsg + ` Skóre: ${bestScore}%`;
+        
+        try {
+            const blob = await (await fetch(canvas.toDataURL())).blob();
+            const file = new File([blob], 'attempt.png', { type: blob.type });
+            
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                await navigator.share({
+                    files: [file],
+                    title: 'Neon Knot',
+                    text: msg,
+                    url: shareUrl
+                });
+            } else {
+                await navigator.share({ title: 'Neon Knot', text: msg, url: shareUrl });
+            }
+        } catch (e) {
+            prompt(currentLang === 'cz' ? "Link:" : "Link:", shareUrl);
+        }
     }
 
     window.onload = () => { setTimeout(drawRef, 500); };
