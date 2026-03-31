@@ -6,7 +6,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <link rel="apple-touch-icon" href="https://i.imgur.com/your-icon-512.png">
     
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
@@ -20,6 +19,13 @@
             position: fixed;
         }
         
+        #portrait-lock {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #000; z-index: 9999; flex-direction: column; align-items: center; 
+            justify-content: center; text-align: center; color: #ff00ff; padding: 20px;
+        }
+        @media (orientation: landscape) { #portrait-lock { display: flex; } }
+
         canvas#gameCanvas { display: block; position: absolute; top: 0; left: 0; z-index: 1; }
         
         #ui { 
@@ -29,39 +35,20 @@
         }
 
         .glass-panel { 
-            background: rgba(15,15,15,0.92); 
-            backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
-            border-radius: 12px; border: 1px solid #444; 
-            padding: 10px; pointer-events: auto; 
+            background: rgba(15,15,15,0.92); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
+            border-radius: 12px; border: 1px solid #444; padding: 10px; pointer-events: auto; 
         }
 
         #login-overlay { 
             position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-            background: #000; z-index: 1000; 
-            display: flex; align-items: center; justify-content: center; 
+            background: #000; z-index: 1000; display: flex; align-items: center; justify-content: center; 
         }
         
-        .login-box { 
-            text-align: center; width: 85%; max-width: 350px; 
-            padding: 25px; border: 1px solid #ff00ff;
-            box-shadow: 0 0 30px rgba(255, 0, 255, 0.2);
-            box-sizing: border-box;
-        }
+        .login-box { text-align: center; width: 85%; max-width: 350px; padding: 25px; border: 1px solid #ff00ff; box-shadow: 0 0 30px rgba(255, 0, 255, 0.2); }
 
-        .login-input { 
-            background: #111; border: 1px solid #444; padding: 12px; 
-            border-radius: 8px; color: #fff; width: 100%; 
-            margin-bottom: 20px; text-align: center; font-size: 16px; 
-            box-sizing: border-box;
-        }
+        .login-input { background: #111; border: 1px solid #444; padding: 12px; border-radius: 8px; color: #fff; width: 100%; margin-bottom: 20px; text-align: center; font-size: 16px; }
         
-        .tutorial-box { 
-            text-align: left; font-size: 12px; color: #ccc; 
-            background: rgba(255,0,255,0.05); padding: 15px; 
-            border-radius: 8px; margin-bottom: 20px; 
-            border: 1px solid rgba(255,0,255,0.2); 
-            line-height: 1.4;
-        }
+        .tutorial-box { text-align: left; font-size: 12px; color: #ccc; background: rgba(255,0,255,0.05); padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid rgba(255,0,255,0.2); line-height: 1.4; }
         .tutorial-box b { color: #ff00ff; display: block; margin-bottom: 5px; }
 
         #top-row { display: flex; gap: 8px; margin-top: env(safe-area-inset-top); }
@@ -72,27 +59,16 @@
         .stat-label { font-size: 8px; color: #888; text-transform: uppercase; }
         .stat-value { font-size: 15px; font-weight: 900; color: #ff00ff; display: block; }
         .moves-count { color: #00ffff !important; }
-        .global-count { color: #ffffff !important; }
 
         #side-menu { 
             position: absolute; top: 0; left: -100%; width: 85%; height: 100%; 
-            background: #0a0a0a; z-index: 100; transition: 0.3s; 
-            padding: 40px 20px; pointer-events: auto; 
-            border-right: 1px solid #ff00ff; box-sizing: border-box; overflow-y: auto; 
+            background: #0a0a0a; z-index: 100; transition: 0.3s; padding: 40px 20px; 
+            pointer-events: auto; border-right: 1px solid #ff00ff; box-sizing: border-box; overflow-y: auto; 
         }
         #side-menu.open { left: 0; }
         
-        .info-section {
-            margin: 20px 0; padding: 15px; background: rgba(255,255,255,0.03);
-            border-radius: 10px; border-left: 3px solid #ff00ff;
-        }
-        .info-header { display: flex; align-items: center; gap: 10px; color: #ff00ff; font-weight: bold; margin-bottom: 10px; }
-        .info-icon { width: 20px; height: 20px; border: 1px solid #ff00ff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; }
-
         .friend-row { display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #1a1a1a; font-size: 13px; align-items: center; cursor: pointer; }
-        .friend-row:active { background: rgba(255, 255, 255, 0.05); }
         .friend-row.me { background: rgba(255, 0, 255, 0.15); color: #ff00ff; font-weight: bold; border-radius: 5px; }
-        .score-link { color: #ff00ff; text-decoration: underline; }
 
         #result-container { margin-top: 10px; text-align: center; display: none; }
         #score-display { font-size: 60px; font-weight: 900; color: #ff00ff; text-shadow: 0 0 20px rgba(255,0,255,0.5); }
@@ -101,73 +77,47 @@
         .btn-challenge { background: #ff00ff; color: #fff; }
         .btn-ok { background: #333; color: #fff; }
 
-        #reference-box { 
-            position: absolute; top: 130px; right: 20px; width: 70px; height: 70px; 
-            border: 2px solid #ff00ff; border-radius: 12px; background: rgba(0,0,0,0.8); 
-            display: flex; align-items: center; justify-content: center; 
-            box-shadow: 0 0 15px rgba(255,0,255,0.3); pointer-events: auto;
-        }
+        #reference-box { position: absolute; top: 130px; right: 20px; width: 70px; height: 70px; border: 2px solid #ff00ff; border-radius: 12px; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; pointer-events: auto; }
         #refCanvas { width: 60px; height: 60px; }
 
-        #photo-overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.95); z-index: 2000; display: none;
-            align-items: center; justify-content: center; flex-direction: column;
-        }
+        #photo-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 2000; display: none; align-items: center; justify-content: center; flex-direction: column; }
         #photo-img { max-width: 90%; max-height: 70%; border: 2px solid #ff00ff; border-radius: 10px; }
-
-        #lang-switcher {
-            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
-            display: flex; gap: 10px; pointer-events: auto; z-index: 20;
-        }
-        .lang-btn {
-            background: rgba(255, 0, 255, 0.1); border: 1px solid rgba(255, 0, 255, 0.3);
-            color: #888; padding: 5px 10px; border-radius: 5px; font-size: 10px; cursor: pointer;
-        }
+        
+        #lang-switcher { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; pointer-events: auto; z-index: 20; }
+        .lang-btn { background: rgba(255, 0, 255, 0.1); border: 1px solid rgba(255, 0, 255, 0.3); color: #888; padding: 5px 10px; border-radius: 5px; font-size: 10px; cursor: pointer; }
         .lang-btn.active { color: #ff00ff; border-color: #ff00ff; background: rgba(255, 0, 255, 0.2); }
     </style>
 </head>
 <body>
 
+<div id="portrait-lock">
+    <h1>🔄</h1>
+    <p id="lock-text">Prosím, otoč telefon na výšku.</p>
+</div>
+
 <div id="login-overlay">
     <div class="login-box glass-panel">
-        <h1 style="color:#ff00ff; margin:0 0 15px 0; letter-spacing: 2px;">NEON KNOT</h1>
+        <h1 style="color:#ff00ff; margin:0 0 15px 0;">NEON KNOT</h1>
         <div class="tutorial-box">
             <b id="tut-h-1">CO MÁŠ DĚLAT?</b>
-            <span id="tut-t-1">Obkresli vzor (vpravo nahoře) jedním souvislým tahem.</span>
-            <br><br>
-            <b id="tut-h-2">JAK ZÍSKAT TAHY NAVÍC?</b>
-            <span id="tut-t-2">Klikni na "Pozvat kámoše" a pošli link. Tah se přičte až kamarád odehraje..</span>
+            <span id="tut-t-1">Obkresli vzor jedním tahem.</span>
         </div>
         <input type="text" id="player-name-input" class="login-input" placeholder="..." maxlength="12">
-        <button class="btn btn-challenge" style="width:100%" onclick="savePlayerName()" id="btn-start">START HRY</button>
+        <button class="btn btn-challenge" style="width:100%" onclick="savePlayerName()" id="btn-start">START</button>
     </div>
 </div>
 
 <div id="photo-overlay" onclick="this.style.display='none'">
     <img id="photo-img" src="">
-    <p style="margin-top:20px; color:#ff00ff; font-weight:bold;">KLIKNI KAMKOLIV PRO ZAVŘENÍ</p>
+    <p id="photo-close-hint" style="margin-top:20px; color:#ff00ff; font-weight:bold;">KLIKNI KAMKOLIV PRO ZAVŘENÍ</p>
 </div>
 
 <canvas id="gameCanvas"></canvas>
 
 <div id="side-menu">
     <div style="text-align:right; font-size:28px;" onclick="toggleMenu()">✕</div>
-    <h2 id="menu-user-name" style="color:#ff00ff; margin-bottom: 10px;">Hráč</h2>
-    
-    <div class="info-section">
-        <div class="info-header"><div class="info-icon">i</div> <span id="menu-info-title">Instrukce</span></div>
-        <div style="font-size: 11px; color: #ccc; line-height: 1.5;" id="menu-info-body">
-            <b>CO DĚLAT?</b><br>Obkresli vzor jedním tahem.<br><br>
-            <b>REKORDY:</b><br>Kliknutím na řádek v žebříčku zobrazíš fotku pokusu.<br><br>
-            <b>BONUSY:</b><br>Sdílej svůj link. Tah se přičte až kamarád odehraje..<br><br>
-            <b>ŘADA:</b><br>Hraj každý den. Za každých 20 dní získáš +1 základní tah navždy.
-        </div>
-    </div>
-
+    <h2 id="menu-user-name" style="color:#ff00ff;">Hráč</h2>
     <button class="btn btn-challenge" style="width:100%; margin-bottom: 25px;" onclick="shareGame()" id="btn-invite">POZVAT KÁMOŠE (+1 TAH)</button>
-    
-    <div style="font-size: 11px; color: #888; text-transform: uppercase; margin-bottom: 10px;" id="menu-top10">TOP 10 ŽEBŘÍČEK</div>
     <div id="friends-list"></div>
 </div>
 
@@ -175,10 +125,9 @@
     <div id="top-row">
         <div id="menu-btn" class="glass-panel" onclick="toggleMenu()">☰</div>
         <div id="stats-bar" class="glass-panel">
-            <div class="stat-item"><span class="stat-label" id="label-moves">Tahy</span><span id="moves-display" class="stat-value moves-count">0</span></div>
-            <div class="stat-item"><span class="stat-label" id="label-best">Best</span><span id="best-display" class="stat-value">0%</span></div>
-            <div class="stat-item"><span class="stat-label" id="label-streak">Řada</span><span id="streak-display" class="stat-value">🔥 0</span></div>
-            <div class="stat-item"><span class="stat-label" id="label-global">Svět</span><span id="global-display" class="stat-value global-count">0</span></div>
+            <div class="stat-item"><span class="stat-label" id="lbl-moves">Tahy</span><span id="moves-display" class="stat-value moves-count">0</span></div>
+            <div class="stat-item"><span class="stat-label" id="lbl-best">Best</span><span id="best-display" class="stat-value">0%</span></div>
+            <div class="stat-item"><span class="stat-label" id="lbl-streak">Řada</span><span id="streak-display" class="stat-value">🔥 0</span></div>
         </div>
     </div>
     <div id="result-container" class="glass-panel">
@@ -188,8 +137,8 @@
             <button class="btn btn-challenge" onclick="shareGame()" id="btn-share">Sdílet</button>
         </div>
     </div>
-    <div id="reference-box" onclick="drawRef()"><canvas id="refCanvas" width="200" height="200"></canvas></div>
-
+    <div id="reference-box"><canvas id="refCanvas" width="200" height="200"></canvas></div>
+    
     <div id="lang-switcher">
         <div class="lang-btn" id="lang-cz" onclick="setLang('cz')">CZ</div>
         <div class="lang-btn" id="lang-en" onclick="setLang('en')">EN</div>
@@ -206,26 +155,20 @@
     };
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
-    
+
     let currentLang = localStorage.getItem('neon_lang') || 'cz';
     const texts = {
         cz: {
-            tutH1: "CO MÁŠ DĚLAT?", tutT1: "Obkresli vzor (vpravo nahoře) jedním souvislým tahem.",
-            tutH2: "JAK ZÍSKAT TAHY NAVÍC?", tutT2: "Klikni na 'Pozvat kámoše'. Tah se přičte až kamarád odehraje..",
-            start: "START HRY", invite: "POZVAT KÁMOŠE (+1 TAH)", top10: "TOP 10 ŽEBŘÍČEK",
-            labelMoves: "Tahy", labelBest: "Best", labelStreak: "Řada", labelGlobal: "Svět", again: "Znovu", share: "Sdílet",
-            nickPlaceholder: "Tvá přezdívka...", infoTitle: "Instrukce", 
-            infoBody: "<b>CO DĚLAT?</b><br>Obkresli vzor jedním tahem.<br><br><b>REKORDY:</b><br>Kliknutím na řádek v žebříčku zobrazíš fotku pokusu.<br><br><b>BONUSY:</b><br>Sdílej svůj link. Tah se přičte až kamarád odehraje..<br><br><b>ŘADA:</b><br>Hraj každý den. Za každých 20 dní získáš +1 tah navždy.",
-            alertNoMoves: "Dnes už jsi vyčerpal tahy. Přijď po půlnoci!", shareMsg: "Koukni na můj pokus!"
+            tutH1: "CO MÁŠ DĚLAT?", tutT1: "Obkresli vzor jedním tahem.", start: "START HRY",
+            invite: "POZVAT KÁMOŠE (+1 TAH)", moves: "Tahy", best: "Best", streak: "Řada",
+            again: "Znovu", share: "Sdílet", closeHint: "KLIKNI KAMKOLIV PRO ZAVŘENÍ",
+            lock: "Prosím, otoč telefon na výšku."
         },
         en: {
-            tutH1: "HOW TO PLAY?", tutT1: "Trace the pattern (top right) in one continuous stroke.",
-            tutH2: "GET EXTRA MOVES?", tutT2: "Click 'Invite Friends'. Move added after your friend plays..",
-            start: "START GAME", invite: "INVITE FRIENDS (+1 MOVE)", top10: "TOP 10 RANKING",
-            labelMoves: "Moves", labelBest: "Best", labelStreak: "Streak", labelGlobal: "World", again: "Again", share: "Share",
-            nickPlaceholder: "Your nickname...", infoTitle: "Instructions",
-            infoBody: "<b>HOW TO PLAY?</b><br>Trace the pattern in one go.<br><br><b>RECORDS:</b><br>Click any row in the ranking to see the attempt photo.<br><br><b>BONUSES:</b><br>Share your link. Moves added after friends play..<br><br><b>STREAK:</b><br>Play daily. Every 20 days gives you +1 move forever.",
-            alertNoMoves: "No moves left today. Come back after midnight!", shareMsg: "Check my attempt!"
+            tutH1: "HOW TO PLAY?", tutT1: "Trace the pattern in one go.", start: "START GAME",
+            invite: "INVITE FRIENDS (+1 MOVE)", moves: "Moves", best: "Best", streak: "Streak",
+            again: "Again", share: "Share", closeHint: "CLICK ANYWHERE TO CLOSE",
+            lock: "Please rotate your phone to portrait."
         }
     };
 
@@ -237,24 +180,17 @@
         const t = texts[l];
         document.getElementById('tut-h-1').innerText = t.tutH1;
         document.getElementById('tut-t-1').innerText = t.tutT1;
-        document.getElementById('tut-h-2').innerText = t.tutH2;
-        document.getElementById('tut-t-2').innerText = t.tutT2;
         document.getElementById('btn-start').innerText = t.start;
         document.getElementById('btn-invite').innerText = t.invite;
-        document.getElementById('menu-top10').innerText = t.top10;
-        document.getElementById('label-moves').innerText = t.labelMoves;
-        document.getElementById('label-best').innerText = t.labelBest;
-        document.getElementById('label-streak').innerText = t.labelStreak;
-        document.getElementById('label-global').innerText = t.labelGlobal;
+        document.getElementById('lbl-moves').innerText = t.moves;
+        document.getElementById('lbl-best').innerText = t.best;
+        document.getElementById('lbl-streak').innerText = t.streak;
         document.getElementById('btn-again').innerText = t.again;
         document.getElementById('btn-share').innerText = t.share;
-        document.getElementById('player-name-input').placeholder = t.nickPlaceholder;
-        document.getElementById('menu-info-title').innerText = t.infoTitle;
-        document.getElementById('menu-info-body').innerHTML = t.infoBody;
+        document.getElementById('photo-close-hint').innerText = t.closeHint;
+        document.getElementById('lock-text').innerText = t.lock;
     }
 
-    const urlParams = new URLSearchParams(window.location.search);
-    const referrer = urlParams.get('ref');
     let userId = localStorage.getItem('neon_uid') || 'u_' + Math.random().toString(36).substr(2, 9);
     localStorage.setItem('neon_uid', userId);
     let userName = localStorage.getItem('neon_name');
@@ -273,8 +209,7 @@
             userName = name;
             localStorage.setItem('neon_name', name);
             document.getElementById('login-overlay').style.display = 'none';
-            db.ref(`users/${userId}`).update({ name: userName, invitedBy: referrer || null });
-            if (!moves) db.ref(`users/${userId}/moves`).set(1);
+            db.ref(`users/${userId}`).update({ name: userName });
             initGame();
         }
     }
@@ -286,13 +221,8 @@
             streak = data.streak || 0;
             bestScore = data.bestScore || 0;
             moves = data.moves || 0;
-            checkMidnightReset(data.lastPlayDate);
             updateUI();
-            setTimeout(drawRef, 150);
-        });
-
-        db.ref('global_moves').on('value', snap => {
-            document.getElementById('global-display').innerText = snap.val() || 0;
+            drawRef();
         });
 
         db.ref('users').orderByChild('bestScore').limitToLast(10).on('value', snap => {
@@ -303,8 +233,7 @@
             let html = '';
             list.forEach(u => {
                 const isMe = u.id === userId ? 'me' : '';
-                // Onclick přesunuto na celý řádek
-                html += `<div class="friend-row ${isMe}" onclick="viewPhoto('${u.id}')"><span>${u.name || '...'}</span><b class="score-link">${u.bestScore || 0}%</b></div>`;
+                html += `<div class="friend-row ${isMe}" onclick="viewPhoto('${u.id}')"><span>${u.name || '...'}</span><b>${u.bestScore || 0}%</b></div>`;
             });
             document.getElementById('friends-list').innerHTML = html;
         });
@@ -318,17 +247,6 @@
                 document.getElementById('photo-overlay').style.display = 'flex';
             }
         });
-    }
-
-    function checkMidnightReset(lastPlayDate) {
-        const today = new Date().toLocaleDateString();
-        if (lastPlayDate !== today) {
-            const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
-            const yesterdayStr = yesterday.toLocaleDateString();
-            if (lastPlayDate === yesterdayStr) streak++; else streak = 1;
-            let dailyBase = 1 + Math.floor(streak / 20);
-            db.ref(`users/${userId}`).update({ moves: dailyBase, streak: streak, lastPlayDate: today });
-        }
     }
 
     function updateUI() {
@@ -363,7 +281,6 @@
         if (isDrawing && playerTrace.length > 15) {
             moves--;
             db.ref(`users/${userId}/moves`).set(moves);
-            db.ref('global_moves').transaction(v => (v || 0) + 1);
             evaluate();
         }
         isDrawing = false;
@@ -376,6 +293,7 @@
         let size = Math.max(maxX - minX, maxY - minY, 50);
         let centerX = minX + (maxX - minX) / 2;
         let centerY = minY + (maxY - minY) / 2;
+        
         const normPlayer = playerTrace.map(p => ({ x: ((p.x - centerX) / size) * 80 + 50, y: ((p.y - centerY) / size) * 80 + 50 }));
         let totalErr = 0;
         normPlayer.forEach(p => {
@@ -387,36 +305,36 @@
             totalErr += minDist;
         });
         let score = Math.round(Math.max(0, 100 - ( (totalErr / normPlayer.length) * 12 )));
-        
-        const photo = canvas.toDataURL("image/webp", 0.3);
-        if (score >= bestScore) {
-            db.ref(`users/${userId}`).update({ bestScore: score, bestPhoto: photo });
-        }
-        
-        showScore(score);
 
-        const today = new Date().toLocaleDateString();
-        db.ref(`users/${userId}`).once('value', snap => {
-            const me = snap.val() || {};
-            if (me.invitedBy) {
-                const bonusPath = `users/${me.invitedBy}/dailyBonuses/${userId}`;
-                db.ref(bonusPath).once('value', bSnap => {
-                    if (bSnap.val() !== today) {
-                        db.ref(`users/${me.invitedBy}/moves`).transaction(m => (m || 0) + 1);
-                        db.ref(bonusPath).set(today);
-                    }
-                });
-            }
-        });
-        
-        ctx.setLineDash([8, 8]); ctx.strokeStyle = 'rgba(255, 0, 255, 0.4)'; ctx.lineWidth = 2;
+        // VYKRESLENÍ VZORU DO FOTKY
+        ctx.shadowBlur = 0;
+        ctx.setLineDash([8, 8]); 
+        ctx.strokeStyle = 'rgba(255, 0, 255, 0.6)'; 
+        ctx.lineWidth = 3;
         ctx.beginPath();
         targetShape.forEach((p, i) => {
             let rx = ((p.x - 50) / 80) * size + centerX;
             let ry = ((p.y - 50) / 80) * size + centerY;
             i === 0 ? ctx.moveTo(rx, ry) : ctx.lineTo(rx, ry);
         });
-        ctx.stroke(); ctx.setLineDash([]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Vykreslení procent do fotky
+        ctx.fillStyle = "#ff00ff";
+        ctx.font = "bold 40px Segoe UI";
+        ctx.textAlign = "center";
+        ctx.fillText(score + "%", centerX, minY - 30);
+
+        // Uložení (včetně vzoru)
+        setTimeout(() => {
+            const photo = canvas.toDataURL("image/webp", 0.4);
+            if (score >= bestScore) {
+                db.ref(`users/${userId}`).update({ bestScore: score, bestPhoto: photo });
+            }
+        }, 50);
+        
+        showScore(score);
     }
 
     function distToSegment(p, v, w) {
@@ -432,7 +350,7 @@
     }
 
     function resetBoard() {
-        if (moves <= 0) { alert(texts[currentLang].alertNoMoves); return; }
+        if (moves <= 0) return;
         ctx.clearRect(0,0,canvas.width, canvas.height);
         document.getElementById('result-container').style.display = 'none';
         isFinished = false;
@@ -443,7 +361,6 @@
 
     function drawRef() {
         const rCanvas = document.getElementById('refCanvas');
-        if(!rCanvas) return;
         const r = rCanvas.getContext('2d');
         r.clearRect(0,0,200,200);
         r.shadowBlur = 15; r.shadowColor = '#ff00ff';
@@ -454,31 +371,17 @@
         r.shadowBlur = 0; r.strokeStyle = '#fff'; r.lineWidth = 4; r.stroke();
     }
 
-    async function shareGame() {
+    function shareGame() {
         const shareUrl = window.location.origin + window.location.pathname + '?ref=' + userId;
-        const msg = texts[currentLang].shareMsg + ` Skóre: ${bestScore}%`;
-        
-        try {
-            const blob = await (await fetch(canvas.toDataURL())).blob();
-            const file = new File([blob], 'attempt.png', { type: blob.type });
-            
-            if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                await navigator.share({
-                    files: [file],
-                    title: 'Neon Knot',
-                    text: msg,
-                    url: shareUrl
-                });
-            } else {
-                await navigator.share({ title: 'Neon Knot', text: msg, url: shareUrl });
-            }
-        } catch (e) {
-            prompt(currentLang === 'cz' ? "Link:" : "Link:", shareUrl);
-        }
+        prompt("Link:", shareUrl);
     }
 
     window.onload = () => { setTimeout(drawRef, 500); };
-    window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; drawRef(); });
+    window.addEventListener('resize', () => { 
+        canvas.width = window.innerWidth; 
+        canvas.height = window.innerHeight; 
+        drawRef(); 
+    });
 </script>
 </body>
 </html>
