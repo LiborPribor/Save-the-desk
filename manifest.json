@@ -1,15 +1,16 @@
 {
-  "name": "Global Clean-up",
-  "short_name": "CleanPlanet",
+  "name": "Neon Knot",
+  "short_name": "NeonKnot",
   "start_url": "index.html",
   "display": "standalone",
-  "background_color": "#000000",
-  "theme_color": "#00ff00",
+  "background_color": "#050505",
+  "theme_color": "#ff00ff",
   "icons": [
     {
-      "src": "https://cdn-icons-png.flaticon.com/512/825/825561.png",
+      "src": "https://i.imgur.com/your-icon-512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ]
 }
