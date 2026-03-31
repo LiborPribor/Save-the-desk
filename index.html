@@ -176,4 +176,141 @@
     });
 
     const canvas = document.getElementById('gameCanvas');
-    const ctx
+    const ctx = canvas.getContext('2d');
+    const targetShape = [{x:50,y:10},{x:85,y:40},{x:50,y:55},{x:15,y:70},{x:50,y:95},{x:85,y:70},{x:50,y:55},{x:15,y:40},{x:50,y:10}];
+    
+    let playerTrace = [], isDrawing = false, isFinished = false;
+    canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+
+    canvas.addEventListener('touchstart', e => {
+        if (isFinished || !userName) return;
+        if (!isDrawing) { ctx.clearRect(0,0,canvas.width, canvas.height); playerTrace = []; }
+        isDrawing = true;
+        playerTrace.push({x: e.touches[0].clientX, y: e.touches[0].clientY});
+    });
+
+    canvas.addEventListener('touchmove', e => {
+        if (!isDrawing) return;
+        const t = e.touches[0];
+        const last = playerTrace[playerTrace.length-1];
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 5; ctx.shadowBlur = 15; ctx.shadowColor = '#ff00ff'; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(last.x, last.y); ctx.lineTo(t.clientX, t.clientY); ctx.stroke();
+        playerTrace.push({x: t.clientX, y: t.clientY});
+    });
+
+    canvas.addEventListener('touchend', () => {
+        if (isDrawing && playerTrace.length > 15) evaluate();
+        isDrawing = false;
+    });
+
+    // --- ZACHOVANÁ PRECÍZNÍ LOGIKA HODNOCENÍ ---
+    function evaluate() {
+        isFinished = true;
+        let minX = Math.min(...playerTrace.map(p=>p.x)), maxX = Math.max(...playerTrace.map(p=>p.x));
+        let minY = Math.min(...playerTrace.map(p=>p.y)), maxY = Math.max(...playerTrace.map(p=>p.y));
+        let drawW = maxX - minX, drawH = maxY - minY;
+        
+        if (drawW < 80 || drawH < 80) { showScore(Math.floor(Math.random()*5)); return; }
+
+        let size = Math.max(drawW, drawH, 50);
+        let centerX = minX + drawW / 2;
+        let centerY = minY + drawH / 2;
+
+        const normPlayer = playerTrace.map(p => ({
+            x: ((p.x - centerX) / size) * 80 + 50,
+            y: ((p.y - centerY) / size) * 80 + 50
+        }));
+
+        let totalErr = 0;
+        normPlayer.forEach(p => {
+            let minDist = Infinity;
+            for(let i=0; i<targetShape.length-1; i++) {
+                let d = distToSegment(p, targetShape[i], targetShape[i+1]);
+                if (d < minDist) minDist = d;
+            }
+            totalErr += minDist;
+        });
+        let avgErr = totalErr / normPlayer.length;
+
+        const corners = [{x:50,y:10}, {x:85,y:40}, {x:50,y:95}, {x:15,y:40}];
+        let cornersHit = 0;
+        corners.forEach(c => {
+            if (normPlayer.some(p => Math.hypot(p.x - c.x, p.y - c.y) < 14)) cornersHit++;
+        });
+
+        let distances = normPlayer.map(p => Math.hypot(p.x - 50, p.y - 50));
+        let maxR = Math.max(...distances), minR = Math.min(...distances);
+        let radiusVariance = maxR - minR;
+
+        let score = 100 - (avgErr * 12);
+        if (cornersHit < 4) score *= 0.4;
+        if (radiusVariance < 15) score *= 0.2;
+        if (avgErr > 10) score *= 0.5;
+
+        let finalScore = Math.round(Math.max(0, score));
+        showScore(finalScore);
+
+        // --- ZACHOVANÝ ČÁRKOVANÝ DUCH ---
+        ctx.setLineDash([8, 8]); ctx.strokeStyle = 'rgba(255, 0, 255, 0.4)'; ctx.lineWidth = 2; ctx.shadowBlur = 0;
+        ctx.beginPath();
+        targetShape.forEach((p, i) => {
+            let rx = ((p.x - 50) / 80) * size + centerX;
+            let ry = ((p.y - 50) / 80) * size + centerY;
+            i === 0 ? ctx.moveTo(rx, ry) : ctx.lineTo(rx, ry);
+        });
+        ctx.stroke(); ctx.setLineDash([]);
+
+        // Vizuální podpis pro screenshot
+        ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
+        ctx.font = "bold 16px Segoe UI";
+        ctx.textAlign = "center";
+        ctx.fillText(userName.toUpperCase() + " • " + finalScore + "%", canvas.width/2, canvas.height - 40);
+    }
+
+    function distToSegment(p, v, w) {
+        let l2 = Math.hypot(v.x - w.x, v.y - w.y)**2;
+        if (l2 == 0) return Math.hypot(p.x - v.x, p.y - v.y);
+        let t = Math.max(0, Math.min(1, ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / l2));
+        return Math.hypot(p.x - (v.x + t * (w.x - v.x)), p.y - (v.y + t * (w.y - v.y)));
+    }
+
+    function showScore(s) {
+        document.getElementById('result-container').style.display = 'block';
+        let curr = 0;
+        const itv = setInterval(() => {
+            document.getElementById('score-display').innerText = curr + "%";
+            if(curr >= s) clearInterval(itv);
+            curr++;
+        }, 15);
+        if(s > bestEver) db.ref(`users/${userId}/bestScore`).set(s);
+    }
+
+    function resetBoard() {
+        ctx.clearRect(0,0,canvas.width, canvas.height);
+        document.getElementById('result-container').style.display = 'none';
+        isFinished = false;
+    }
+
+    function toggleMenu() { document.getElementById('side-menu').classList.toggle('open'); }
+    
+    function drawRef() {
+        const r = document.getElementById('refCanvas').getContext('2d');
+        r.clearRect(0,0,200,200); r.strokeStyle='#ff00ff'; r.lineWidth=12; r.lineCap='round';
+        r.beginPath(); r.moveTo(targetShape[0].x*2, targetShape[0].y*2);
+        targetShape.forEach(p => r.lineTo(p.x*2, p.y*2)); r.stroke();
+    }
+    
+    drawRef();
+    window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; drawRef(); });
+
+    function shareGame(msg) {
+        const text = `${msg} Já dal v Neon Knot ${bestEver}%. Trumfneš mě? Jméno ve hře: ${userName}`;
+        if (navigator.share) {
+            navigator.share({ title: 'Neon Knot Challenge', text: text, url: window.location.href });
+        } else {
+            prompt("Zkopíruj a pošli:", text);
+        }
+    }
+</script>
+</body>
+</html>
