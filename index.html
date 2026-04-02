@@ -102,7 +102,11 @@
         .btn-ok { background: #333; color: #fff; }
 
         #reference-box { 
-            position: absolute; top: 130px; right: 20px; width: 70px; height: 70px; 
+            position: absolute; 
+            top: 170px; /* Posunuto dolů, aby nezasahovalo do statistik */
+            right: 20px; 
+            width: 70px; 
+            height: 70px; 
             border: 2px solid #ff00ff; border-radius: 12px; background: rgba(0,0,0,0.8); 
             display: flex; align-items: center; justify-content: center; 
             box-shadow: 0 0 15px rgba(255,0,255,0.3); pointer-events: auto;
@@ -158,11 +162,7 @@
     <div class="info-section">
         <div class="info-header"><div class="info-icon">i</div> <span id="menu-info-title">Instrukce</span></div>
         <div style="font-size: 11px; color: #ccc; line-height: 1.5;" id="menu-info-body">
-            <b>CO DĚLAT?</b><br>Obkresli vzor jedním tahem.<br><br>
-            <b>REKORDY:</b><br>Kliknutím na řádek v žebříčku zobrazíš fotku pokusu.<br><br>
-            <b>BONUSY:</b><br>Sdílej svůj link. Tah se přičte až kamarád odehraje..<br><br>
-            <b>ŘADA:</b><br>Hraj každý den. Za každých 20 dní získáš +1 základní tah navždy.
-        </div>
+            </div>
     </div>
 
     <button class="btn btn-challenge" style="width:100%; margin-bottom: 25px;" onclick="shareGame()" id="btn-invite">POZVAT KÁMOŠE (+1 TAH)</button>
@@ -215,7 +215,7 @@
             start: "START HRY", invite: "POZVAT KÁMOŠE (+1 TAH)", top10: "TOP 10 ŽEBŘÍČEK",
             labelMoves: "Tahy", labelBest: "Best", labelStreak: "Řada", labelGlobal: "Svět", again: "Znovu", share: "Sdílet",
             nickPlaceholder: "Tvá přezdívka...", infoTitle: "Instrukce", 
-            infoBody: "<b>CO DĚLAT?</b><br>Obkresli vzor jedním tahem.<br><br><b>REKORDY:</b><br>Kliknutím na řádek v žebříčku zobrazíš fotku pokusu.<br><br><b>BONUSY:</b><br>Sdílej svůj link. Tah se přičte až kamarád odehraje..<br><br><b>ŘADA:</b><br>Hraj každý den. Za každých 20 dní získáš +1 tah navždy.",
+            infoBody: "<b>CO DĚLAT?</b><br>Obkresli vzor jedním tahem.<br><br><b>ULOŽENÍ APKY NA PLOCHU:</b><br>Sdílet - zobrazit další - pridat na plochu<br><br><b>REKORDY:</b><br>Kliknutím na řádek v žebříčku zobrazíš fotku pokusu.<br><br><b>BONUSY:</b><br>Sdílej svůj link. Tah se přičte až kamarád odehraje..<br><br><b>ŘADA:</b><br>Hraj každý den. Za každých 20 dní získáš +1 tah navždy.",
             alertNoMoves: "Dnes už jsi vyčerpal tahy. Přijď po půlnoci!", shareMsg: "Koukni na můj pokus!"
         },
         en: {
@@ -224,7 +224,7 @@
             start: "START GAME", invite: "INVITE FRIENDS (+1 MOVE)", top10: "TOP 10 RANKING",
             labelMoves: "Moves", labelBest: "Best", labelStreak: "Streak", labelGlobal: "World", again: "Again", share: "Share",
             nickPlaceholder: "Your nickname...", infoTitle: "Instructions",
-            infoBody: "<b>HOW TO PLAY?</b><br>Trace the pattern in one go.<br><br><b>RECORDS:</b><br>Click any row in the ranking to see the attempt photo.<br><br><b>BONUSES:</b><br>Share your link. Moves added after friends play..<br><br><b>STREAK:</b><br>Play daily. Every 20 days gives you +1 move forever.",
+            infoBody: "<b>HOW TO PLAY?</b><br>Trace the pattern in one go.<br><br><b>SAVE TO HOME SCREEN:</b><br>Share - show more - add to home screen<br><br><b>RECORDS:</b><br>Click any row in the ranking to see the attempt photo.<br><br><b>BONUSES:</b><br>Share your link. Moves added after friends play..<br><br><b>STREAK:</b><br>Play daily. Every 20 days gives you +1 move forever.",
             alertNoMoves: "No moves left today. Come back after midnight!", shareMsg: "Check my attempt!"
         }
     };
@@ -236,7 +236,6 @@
     let userName = localStorage.getItem('neon_name');
     let moves = 0, streak = 0, bestScore = 0;
 
-    // FIX: Okamžité skrytí login overlay, pokud uživatel existuje v paměti
     if (userName) document.getElementById('login-overlay').style.display = 'none';
 
     function setLang(l) {
@@ -265,7 +264,6 @@
     }
     setLang(currentLang);
 
-    // FIX: Kontrola existence v DB a login
     db.ref(`users/${userId}`).once('value', snap => {
         const data = snap.val();
         if (data && data.name) {
@@ -416,7 +414,6 @@
         
         showScore(score);
 
-        // FIX: Logika bonusu - dává tah referrerovi, když nový hráč odehraje
         db.ref(`users/${userId}`).once('value', snap => {
             const me = snap.val() || {};
             if (me.invitedBy) {
