@@ -103,7 +103,7 @@
 
         #reference-box { 
             position: absolute; 
-            top: 170px; 
+            top: 170px; /* Posunuto dolů, aby nezasahovalo do statistik */
             right: 20px; 
             width: 70px; 
             height: 70px; 
@@ -235,7 +235,6 @@
     localStorage.setItem('neon_uid', userId);
     let userName = localStorage.getItem('neon_name');
     let moves = 0, streak = 0, bestScore = 0;
-    let usedRefs = {};
 
     if (userName) document.getElementById('login-overlay').style.display = 'none';
 
@@ -281,21 +280,12 @@
             userName = name;
             localStorage.setItem('neon_name', name);
             document.getElementById('login-overlay').style.display = 'none';
-            
-            db.ref(`users/${userId}`).once('value', snap => {
-                if (!snap.exists()) {
-                    db.ref(`users/${userId}`).set({ 
-                        name: userName, 
-                        moves: 1, 
-                        streak: 0,
-                        lastPlayDate: new Date().toLocaleDateString(),
-                        invitedBy: (referrer && referrer !== userId) ? referrer : null
-                    });
-                } else {
-                    db.ref(`users/${userId}`).update({ name: userName });
-                }
-                initGame();
+            db.ref(`users/${userId}`).update({ 
+                name: userName, 
+                invitedBy: (referrer && referrer !== userId) ? referrer : null,
+                lastPlayDate: new Date().toLocaleDateString()
             });
+            initGame();
         }
     }
 
@@ -307,19 +297,15 @@
             streak = data.streak || 0;
             bestScore = data.bestScore || 0;
             moves = data.moves || 0;
-            usedRefs = data.usedRefs || {};
             
             checkMidnightReset(data.lastPlayDate);
             updateUI();
             
             if (moves <= 0 && !isDrawing && !isFinished) {
-                const hasRefBonus = (referrer && referrer !== userId && !usedRefs[referrer]);
-                if (!hasRefBonus) {
-                    document.getElementById('score-display').innerText = "0/0";
-                    document.getElementById('score-display').style.fontSize = "30px";
-                    document.getElementById('result-container').style.display = 'block';
-                    document.getElementById('btn-again').style.opacity = "0.5";
-                }
+                document.getElementById('score-display').innerText = "0/0";
+                document.getElementById('score-display').style.fontSize = "30px";
+                document.getElementById('result-container').style.display = 'block';
+                document.getElementById('btn-again').style.opacity = "0.5";
             }
         });
 
@@ -343,16 +329,15 @@
 
     function checkMidnightReset(lastPlayDate) {
         const today = new Date().toLocaleDateString();
-        if (!lastPlayDate || lastPlayDate !== today) {
+        if (lastPlayDate && lastPlayDate !== today) {
             const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
             const yesterdayStr = yesterday.toLocaleDateString();
             
-            let currentMoves = moves > 0 ? moves : 0;
-            let newStreak = (lastPlayDate === yesterdayStr) ? (streak + 1) : (lastPlayDate ? 1 : 0);
+            let newStreak = (lastPlayDate === yesterdayStr) ? (streak + 1) : 1;
             let dailyBase = 1 + Math.floor(newStreak / 20);
             
             db.ref(`users/${userId}`).update({ 
-                moves: Math.max(currentMoves, dailyBase), 
+                moves: dailyBase, 
                 streak: newStreak, 
                 lastPlayDate: today 
             });
@@ -363,8 +348,7 @@
         document.getElementById('moves-display').innerText = moves;
         document.getElementById('best-display').innerText = bestScore + "%";
         document.getElementById('streak-display').innerText = "🔥 " + streak;
-        const hasRefBonus = (referrer && referrer !== userId && !usedRefs[referrer]);
-        if (moves > 0 || hasRefBonus) {
+        if (moves > 0) {
             document.getElementById('btn-again').style.opacity = "1";
         }
     }
@@ -376,9 +360,8 @@
     canvas.width = window.innerWidth; canvas.height = window.innerHeight;
 
     canvas.addEventListener('touchstart', e => {
-        const hasRefBonus = (referrer && referrer !== userId && !usedRefs[referrer]);
-        if (isFinished || (moves <= 0 && !hasRefBonus)) {
-            if(moves <= 0 && !hasRefBonus) alert(texts[currentLang].alertNoMoves);
+        if (isFinished || moves <= 0) {
+            if(moves <= 0) alert(texts[currentLang].alertNoMoves);
             return;
         }
         isDrawing = true; playerTrace = [];
@@ -397,15 +380,8 @@
 
     canvas.addEventListener('touchend', () => {
         if (isDrawing && playerTrace.length > 15) {
-            const hasRefBonus = (referrer && referrer !== userId && !usedRefs[referrer]);
-            
-            if (moves > 0) {
-                moves--;
-                db.ref(`users/${userId}/moves`).set(moves);
-            } else if (hasRefBonus) {
-                db.ref(`users/${userId}/usedRefs/${referrer}`).set(true);
-            }
-
+            moves--;
+            db.ref(`users/${userId}/moves`).set(moves);
             db.ref('global_moves').transaction(v => (v || 0) + 1);
             evaluate();
         }
@@ -480,9 +456,7 @@
     }
 
     function resetBoard() {
-        const hasRefBonus = (referrer && referrer !== userId && !usedRefs[referrer]);
-        if (moves <= 0 && !hasRefBonus) { alert(texts[currentLang].alertNoMoves); return; }
-        
+        if (moves <= 0) { alert(texts[currentLang].alertNoMoves); return; }
         ctx.clearRect(0,0,canvas.width, canvas.height);
         document.getElementById('result-container').style.display = 'none';
         isFinished = false;
