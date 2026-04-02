@@ -161,4 +161,302 @@
     
     <button class="btn btn-challenge" style="width:100%; margin-bottom: 25px;" onclick="shareGame()" id="btn-invite">POZVAT KÁMOŠE (+1 TAH)</button>
     
-    <div style="font-size: 11px; color: #888; text-transform: uppercase; margin-bottom: 10px;" id="menu-top
+    <div style="font-size: 11px; color: #888; text-transform: uppercase; margin-bottom: 10px;" id="menu-top10">TOP 10 ŽEBŘÍČEK</div>
+    <div id="friends-list"></div>
+</div>
+
+<div id="ui">
+    <div id="top-row">
+        <div id="menu-btn" class="glass-panel" onclick="toggleMenu()">☰</div>
+        <div id="stats-bar" class="glass-panel">
+            <div class="stat-item"><span class="stat-label" id="label-moves">Tahy</span><span id="moves-display" class="stat-value moves-count">0</span></div>
+            <div class="stat-item"><span class="stat-label" id="label-best">Best</span><span id="best-display" class="stat-value">0%</span></div>
+            <div class="stat-item"><span class="stat-label" id="label-streak">Řada</span><span id="streak-display" class="stat-value">🔥 0</span></div>
+            <div class="stat-item"><span class="stat-label" id="label-global">Svět</span><span id="global-display" class="stat-value">0</span></div>
+        </div>
+    </div>
+    <div id="result-container" class="glass-panel">
+        <div id="score-display">0%</div>
+        <div style="display:flex; gap:10px; justify-content:center;">
+            <button class="btn btn-ok" onclick="resetBoard()" id="btn-again">Znovu</button>
+            <button class="btn btn-challenge" onclick="shareGame()" id="btn-share">Sdílet</button>
+        </div>
+    </div>
+    <div id="reference-box" onclick="drawRef()"><canvas id="refCanvas" width="200" height="200"></canvas></div>
+
+    <div id="lang-switcher">
+        <div class="lang-btn" id="lang-cz" onclick="setLang('cz')">CZ</div>
+        <div class="lang-btn" id="lang-en" onclick="setLang('en')">EN</div>
+    </div>
+</div>
+
+<script>
+    const firebaseConfig = {
+        apiKey: "AIzaSyCnGuV53ZyxO1qU7G6zsVFqWuKPSndn_bQ",
+        authDomain: "neon-desk.firebaseapp.com",
+        databaseURL: "https://neon-desk-default-rtdb.europe-west1.firebasedatabase.app",
+        projectId: "neon-desk",
+        appId: "1:721167653862:web:36ca5e1022e348896c5427"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    
+    let currentLang = localStorage.getItem('neon_lang') || 'cz';
+    const texts = {
+        cz: {
+            tutH1: "CO MÁŠ DĚLAT?", tutT1: "Obkresli vzor jedním souvislým tahem.",
+            tutH2: "BONUSY ZA KÁMOŠE", tutT2: "Každý den, kdy si oba zahrajete, získáte +1 tah navíc!",
+            start: "START HRY", invite: "POZVAT KÁMOŠE (+1 TAH)", top10: "TOP 10 ŽEBŘÍČEK",
+            labelMoves: "Tahy", labelBest: "Best", labelStreak: "Řada", labelGlobal: "Svět", again: "Znovu", share: "Sdílet",
+            nickPlaceholder: "Tvá přezdívka...", alertNoMoves: "Dnes už jsi vyčerpal tahy!", shareMsg: "Zkus překonat mých"
+        },
+        en: {
+            tutH1: "HOW TO PLAY?", tutT1: "Trace the pattern in one continuous stroke.",
+            tutH2: "FRIEND BONUSES", tutT2: "Every day you both play, you get +1 extra move!",
+            start: "START GAME", invite: "INVITE FRIENDS (+1 MOVE)", top10: "TOP 10 RANKING",
+            labelMoves: "Moves", labelBest: "Best", labelStreak: "Streak", labelGlobal: "World", again: "Again", share: "Share",
+            nickPlaceholder: "Your nickname...", alertNoMoves: "No moves left today!", shareMsg: "Try to beat my"
+        }
+    };
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const referrer = urlParams.get('ref');
+    let userId = localStorage.getItem('neon_uid') || 'u_' + Math.random().toString(36).substr(2, 9);
+    localStorage.setItem('neon_uid', userId);
+    let userName = localStorage.getItem('neon_name');
+    let moves = 0, streak = 0, bestScore = 0;
+    let isDrawing = false, isFinished = false;
+
+    function setLang(l) {
+        currentLang = l;
+        localStorage.setItem('neon_lang', l);
+        document.querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById('lang-' + l).classList.add('active');
+        const t = texts[l];
+        document.getElementById('tut-h-1').innerText = t.tutH1; document.getElementById('tut-t-1').innerText = t.tutT1;
+        document.getElementById('tut-h-2').innerText = t.tutH2; document.getElementById('tut-t-2').innerText = t.tutT2;
+        document.getElementById('btn-start').innerText = t.start; document.getElementById('btn-invite').innerText = t.invite;
+        document.getElementById('menu-top10').innerText = t.top10; document.getElementById('label-moves').innerText = t.labelMoves;
+        document.getElementById('label-best').innerText = t.labelBest; document.getElementById('label-streak').innerText = t.labelStreak;
+        document.getElementById('label-global').innerText = t.labelGlobal; document.getElementById('btn-again').innerText = t.again;
+        document.getElementById('btn-share').innerText = t.share; document.getElementById('player-name-input').placeholder = t.nickPlaceholder;
+    }
+    setLang(currentLang);
+
+    function savePlayerName() {
+        const name = document.getElementById('player-name-input').value.trim();
+        if (name.length > 1) {
+            userName = name;
+            localStorage.setItem('neon_name', name);
+            document.getElementById('login-overlay').style.display = 'none';
+            db.ref(`users/${userId}`).once('value', snap => {
+                if (!snap.exists()) {
+                    db.ref(`users/${userId}`).set({ 
+                        name: userName, moves: 2, streak: 0, 
+                        lastPlayDate: new Date().toLocaleDateString(),
+                        invitedBy: (referrer && referrer !== userId) ? referrer : null
+                    });
+                    if (referrer && referrer !== userId) {
+                        db.ref(`users/${referrer}/myInvitedFriends/${userId}`).set(true);
+                    }
+                } else {
+                    db.ref(`users/${userId}`).update({ name: userName });
+                }
+                initGame();
+            });
+        }
+    }
+
+    function initGame() {
+        if (userName) document.getElementById('login-overlay').style.display = 'none';
+        document.getElementById('menu-user-name').innerText = userName || '...';
+        
+        db.ref(`users/${userId}`).on('value', snap => {
+            const data = snap.val() || {};
+            streak = data.streak || 0;
+            bestScore = data.bestScore || 0;
+            moves = data.moves || 0;
+            checkMidnightReset(data.lastPlayDate);
+            updateUI();
+        });
+
+        db.ref('users').orderByChild('bestScore').limitToLast(30).on('value', snap => {
+            const users = snap.val();
+            let list = [];
+            let seen = new Set();
+            for (let id in users) {
+                if (!seen.has(id)) {
+                    list.push({ ...users[id], id: id });
+                    seen.add(id);
+                }
+            }
+            list.sort((a,b) => (b.bestScore || 0) - (a.bestScore || 0));
+            let html = '';
+            list.slice(0, 10).forEach(u => {
+                const isMe = u.id === userId ? 'me' : '';
+                html += `<div class="friend-row ${isMe}" onclick="viewPhoto('${u.id}')"><span>${u.name || '...'}</span><b class="score-link">${u.bestScore || 0}%</b></div>`;
+            });
+            document.getElementById('friends-list').innerHTML = html;
+        });
+
+        db.ref('global_moves').on('value', s => document.getElementById('global-display').innerText = s.val() || 0);
+    }
+
+    function checkMidnightReset(lastDate) {
+        const today = new Date().toLocaleDateString();
+        if (lastDate !== today) {
+            const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
+            let newStreak = (lastDate === yesterday.toLocaleDateString()) ? (streak + 1) : 1;
+            db.ref(`users/${userId}`).update({ 
+                moves: 1 + Math.floor(newStreak / 20), 
+                streak: newStreak, 
+                lastPlayDate: today 
+            });
+        }
+    }
+
+    function updateUI() {
+        document.getElementById('moves-display').innerText = moves;
+        document.getElementById('best-display').innerText = bestScore + "%";
+        document.getElementById('streak-display').innerText = "🔥 " + streak;
+    }
+
+    // --- HERNÍ LOGIKA ---
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const targetShape = [{x:50,y:10},{x:85,y:40},{x:50,y:55},{x:15,y:70},{x:50,y:95},{x:85,y:70},{x:50,y:55},{x:15,y:40},{x:50,y:10}];
+    let playerTrace = [];
+    canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+
+    canvas.addEventListener('touchstart', e => {
+        if (isFinished || moves <= 0) return;
+        isDrawing = true; playerTrace = [];
+        ctx.clearRect(0,0,canvas.width, canvas.height);
+    });
+
+    canvas.addEventListener('touchmove', e => {
+        if (!isDrawing) return;
+        const t = e.touches[0];
+        const last = playerTrace[playerTrace.length-1];
+        if(last) {
+            ctx.strokeStyle = '#fff'; ctx.lineWidth = 5; ctx.shadowBlur = 15; ctx.shadowColor = '#ff00ff'; ctx.lineCap = 'round';
+            ctx.beginPath(); ctx.moveTo(last.x, last.y); ctx.lineTo(t.clientX, t.clientY); ctx.stroke();
+        }
+        playerTrace.push({x: t.clientX, y: t.clientY});
+    });
+
+    canvas.addEventListener('touchend', () => {
+        if (isDrawing && playerTrace.length > 10) {
+            moves--;
+            db.ref(`users/${userId}/moves`).set(moves);
+            db.ref('global_moves').transaction(v => (v || 0) + 1);
+            evaluate();
+        }
+        isDrawing = false;
+    });
+
+    function evaluate() {
+        isFinished = true;
+        let minX = Math.min(...playerTrace.map(p=>p.x)), maxX = Math.max(...playerTrace.map(p=>p.x));
+        let minY = Math.min(...playerTrace.map(p=>p.y)), maxY = Math.max(...playerTrace.map(p=>p.y));
+        let size = Math.max(maxX - minX, maxY - minY, 50);
+        let centerX = minX + (maxX - minX) / 2;
+        let centerY = minY + (maxY - minY) / 2;
+        
+        const normPlayer = playerTrace.map(p => ({ x: ((p.x - centerX) / size) * 80 + 50, y: ((p.y - centerY) / size) * 80 + 50 }));
+        let totalErr = 0;
+        normPlayer.forEach(p => {
+            let minDist = Infinity;
+            for(let i=0; i<targetShape.length-1; i++) {
+                let d = distToSegment(p, targetShape[i], targetShape[i+1]);
+                if (d < minDist) minDist = d;
+            }
+            totalErr += minDist;
+        });
+        
+        let score = Math.round(Math.max(0, 100 - ((totalErr / normPlayer.length) * 12)));
+        const photo = canvas.toDataURL("image/webp", 0.3);
+        
+        if (score >= bestScore) db.ref(`users/${userId}`).update({ bestScore: score, bestPhoto: photo });
+        
+        document.getElementById('score-display').innerText = score + "%";
+        document.getElementById('result-container').style.display = 'block';
+
+        // BONUS LOGIC (Vzájemný)
+        const today = new Date().toLocaleDateString();
+        db.ref(`users/${userId}`).once('value', snap => {
+            const me = snap.val() || {};
+            if (me.invitedBy) giveBonus(me.invitedBy, userId, today);
+            if (me.myInvitedFriends) {
+                for (let fid in me.myInvitedFriends) giveBonus(fid, userId, today);
+            }
+        });
+
+        drawGhost(size, centerX, centerY);
+    }
+
+    function giveBonus(targetId, fromId, date) {
+        const path = `users/${targetId}/dailyBonuses/${fromId}`;
+        db.ref(path).transaction(val => {
+            if (val !== date) {
+                db.ref(`users/${targetId}/moves`).transaction(m => (m || 0) + 1);
+                return date;
+            }
+        });
+    }
+
+    function drawGhost(size, centerX, centerY) {
+        ctx.setLineDash([5, 5]); ctx.strokeStyle = 'rgba(255, 0, 255, 0.4)'; ctx.lineWidth = 2;
+        ctx.beginPath();
+        targetShape.forEach((p, i) => {
+            let rx = ((p.x - 50) / 80) * size + centerX;
+            let ry = ((p.y - 50) / 80) * size + centerY;
+            i === 0 ? ctx.moveTo(rx, ry) : ctx.lineTo(rx, ry);
+        });
+        ctx.stroke(); ctx.setLineDash([]);
+    }
+
+    function distToSegment(p, v, w) {
+        let l2 = Math.hypot(v.x - w.x, v.y - w.y)**2;
+        if (l2 == 0) return Math.hypot(p.x - v.x, p.y - v.y);
+        let t = Math.max(0, Math.min(1, ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / l2));
+        return Math.hypot(p.x - (v.x + t * (w.x - v.x)), p.y - (v.y + t * (w.y - v.y)));
+    }
+
+    function resetBoard() {
+        if (moves <= 0) { alert(texts[currentLang].alertNoMoves); return; }
+        ctx.clearRect(0,0,canvas.width, canvas.height);
+        document.getElementById('result-container').style.display = 'none';
+        isFinished = false;
+        drawRef();
+    }
+
+    function toggleMenu() { document.getElementById('side-menu').classList.toggle('open'); }
+
+    function drawRef() {
+        const r = document.getElementById('refCanvas').getContext('2d');
+        r.clearRect(0,0,200,200);
+        r.strokeStyle = '#ff00ff'; r.lineWidth = 12; r.lineCap = 'round'; r.beginPath();
+        targetShape.forEach((p, i) => i === 0 ? r.moveTo(p.x*2, p.y*2) : r.lineTo(p.x*2, p.y*2));
+        r.stroke(); r.strokeStyle = '#fff'; r.lineWidth = 4; r.stroke();
+    }
+
+    function viewPhoto(id) {
+        db.ref(`users/${id}/bestPhoto`).once('value', s => {
+            if (s.val()) { document.getElementById('photo-img').src = s.val(); document.getElementById('photo-overlay').style.display = 'flex'; }
+        });
+    }
+
+    async function shareGame() {
+        const url = window.location.origin + window.location.pathname + '?ref=' + userId;
+        const msg = `${texts[currentLang].shareMsg} ${bestScore}%!`;
+        if (navigator.share) await navigator.share({ title: 'Neon Knot', text: msg, url: url });
+        else prompt("Link:", url);
+    }
+
+    window.onload = () => { if(userName) initGame(); setTimeout(drawRef, 500); };
+    window.onresize = () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; drawRef(); };
+</script>
+
+</body>
+</html>
