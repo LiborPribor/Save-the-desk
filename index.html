@@ -103,7 +103,7 @@
 
         #reference-box { 
             position: absolute; 
-            top: 170px; /* Posunuto dolů, aby nezasahovalo do statistik */
+            top: 170px; 
             right: 20px; 
             width: 70px; 
             height: 70px; 
@@ -280,12 +280,21 @@
             userName = name;
             localStorage.setItem('neon_name', name);
             document.getElementById('login-overlay').style.display = 'none';
-            db.ref(`users/${userId}`).update({ 
-                name: userName, 
-                invitedBy: (referrer && referrer !== userId) ? referrer : null,
-                lastPlayDate: new Date().toLocaleDateString()
+            
+            db.ref(`users/${userId}`).once('value', snap => {
+                if (!snap.exists()) {
+                    db.ref(`users/${userId}`).set({ 
+                        name: userName, 
+                        moves: 1, 
+                        streak: 0,
+                        lastPlayDate: new Date().toLocaleDateString(),
+                        invitedBy: (referrer && referrer !== userId) ? referrer : null
+                    });
+                } else {
+                    db.ref(`users/${userId}`).update({ name: userName });
+                }
+                initGame();
             });
-            initGame();
         }
     }
 
@@ -329,15 +338,16 @@
 
     function checkMidnightReset(lastPlayDate) {
         const today = new Date().toLocaleDateString();
-        if (lastPlayDate && lastPlayDate !== today) {
+        if (!lastPlayDate || lastPlayDate !== today) {
             const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
             const yesterdayStr = yesterday.toLocaleDateString();
             
-            let newStreak = (lastPlayDate === yesterdayStr) ? (streak + 1) : 1;
+            let currentMoves = moves > 0 ? moves : 0;
+            let newStreak = (lastPlayDate === yesterdayStr) ? (streak + 1) : (lastPlayDate ? 1 : 0);
             let dailyBase = 1 + Math.floor(newStreak / 20);
             
             db.ref(`users/${userId}`).update({ 
-                moves: dailyBase, 
+                moves: Math.max(currentMoves, dailyBase), 
                 streak: newStreak, 
                 lastPlayDate: today 
             });
