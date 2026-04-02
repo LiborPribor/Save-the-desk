@@ -292,7 +292,6 @@
                         invitedBy: (referrer && referrer !== userId) ? referrer : null
                     });
                 } else {
-                    // Fix: Pokud hráč už existuje, ale přišel přes link poprvé, uložíme mu taky invitedBy
                     let updates = { name: userName };
                     if (referrer && referrer !== userId && !snap.val().invitedBy) {
                         updates.invitedBy = referrer;
@@ -312,16 +311,19 @@
             streak = data.streak || 0;
             bestScore = data.bestScore || 0;
             moves = data.moves || 0;
-            usedRefs = data.usedRefs || {};
             
             checkMidnightReset(data.lastPlayDate);
             updateUI();
             
+            // Zobrazení výsledku nebo zprávy o nula tazích
             if (moves <= 0 && !isDrawing && !isFinished) {
                 document.getElementById('score-display').innerText = "0/0";
                 document.getElementById('score-display').style.fontSize = "30px";
                 document.getElementById('result-container').style.display = 'block';
                 document.getElementById('btn-again').style.opacity = "0.5";
+            } else if (moves > 0 && !isFinished) {
+                document.getElementById('result-container').style.display = 'none';
+                document.getElementById('btn-again').style.opacity = "1";
             }
         });
 
@@ -365,9 +367,6 @@
         document.getElementById('moves-display').innerText = moves;
         document.getElementById('best-display').innerText = bestScore + "%";
         document.getElementById('streak-display').innerText = "🔥 " + streak;
-        if (moves > 0) {
-            document.getElementById('btn-again').style.opacity = "1";
-        }
     }
 
     const canvas = document.getElementById('gameCanvas');
@@ -397,10 +396,9 @@
 
     canvas.addEventListener('touchend', () => {
         if (isDrawing && playerTrace.length > 15) {
-            if (moves > 0) {
-                moves--;
-                db.ref(`users/${userId}/moves`).set(moves);
-            }
+            // Ihned odečíst tah a uložit
+            moves--;
+            db.ref(`users/${userId}/moves`).set(moves);
             db.ref('global_moves').transaction(v => (v || 0) + 1);
             evaluate();
         }
@@ -433,7 +431,7 @@
         
         showScore(score);
 
-        // Fix: Robustnější přičítání bonusu majiteli linku
+        // SYNC BONUS LOGIC:
         db.ref(`users/${userId}`).once('value', snap => {
             const me = snap.val() || {};
             if (me.invitedBy) {
@@ -442,8 +440,9 @@
                 
                 db.ref(bonusPath).transaction((currentVal) => {
                     if (currentVal !== today) {
+                        // Přičíst tah pozvateli
                         db.ref(`users/${me.invitedBy}/moves`).transaction(m => (m || 0) + 1);
-                        return today;
+                        return today; // Uložit datum, že pro dnešek už bonus proběhl
                     }
                     return; 
                 });
