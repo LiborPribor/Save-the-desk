@@ -103,7 +103,7 @@
 
         #reference-box { 
             position: absolute; 
-            top: 170px; /* Posunuto dolů, aby nezasahovalo do statistik */
+            top: 170px; 
             right: 20px; 
             width: 70px; 
             height: 70px; 
@@ -235,6 +235,7 @@
     localStorage.setItem('neon_uid', userId);
     let userName = localStorage.getItem('neon_name');
     let moves = 0, streak = 0, bestScore = 0;
+    let usedRefs = {}; // Sledování už využitých pozvánek na tomto účtu
 
     if (userName) document.getElementById('login-overlay').style.display = 'none';
 
@@ -280,12 +281,21 @@
             userName = name;
             localStorage.setItem('neon_name', name);
             document.getElementById('login-overlay').style.display = 'none';
-            db.ref(`users/${userId}`).update({ 
-                name: userName, 
-                invitedBy: (referrer && referrer !== userId) ? referrer : null,
-                lastPlayDate: new Date().toLocaleDateString()
+            
+            db.ref(`users/${userId}`).once('value', snap => {
+                if (!snap.exists()) {
+                    db.ref(`users/${userId}`).set({ 
+                        name: userName, 
+                        moves: 1, 
+                        streak: 0,
+                        lastPlayDate: new Date().toLocaleDateString(),
+                        invitedBy: (referrer && referrer !== userId) ? referrer : null
+                    });
+                } else {
+                    db.ref(`users/${userId}`).update({ name: userName });
+                }
+                initGame();
             });
-            initGame();
         }
     }
 
@@ -297,15 +307,20 @@
             streak = data.streak || 0;
             bestScore = data.bestScore || 0;
             moves = data.moves || 0;
+            usedRefs = data.usedRefs || {};
             
             checkMidnightReset(data.lastPlayDate);
             updateUI();
             
             if (moves <= 0 && !isDrawing && !isFinished) {
-                document.getElementById('score-display').innerText = "0/0";
-                document.getElementById('score-display').style.fontSize = "30px";
-                document.getElementById('result-container').style.display = 'block';
-                document.getElementById('btn-again').style.opacity = "0.5";
+                // Pokud má k dispozici nepoužitý bonus z pozvánky, neschováváme tlačítka
+                const hasRefBonus = (referrer && referrer !== userId && !usedRefs[referrer]);
+                if (!hasRefBonus) {
+                    document.getElementById('score-display').innerText = "0/0";
+                    document.getElementById('score-display').style.fontSize = "30px";
+                    document.getElementById('result-container').style.display = 'block';
+                    document.getElementById('btn-again').style.opacity = "0.5";
+                }
             }
         });
 
@@ -329,15 +344,16 @@
 
     function checkMidnightReset(lastPlayDate) {
         const today = new Date().toLocaleDateString();
-        if (lastPlayDate && lastPlayDate !== today) {
+        if (!lastPlayDate || lastPlayDate !== today) {
             const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
             const yesterdayStr = yesterday.toLocaleDateString();
             
-            let newStreak = (lastPlayDate === yesterdayStr) ? (streak + 1) : 1;
+            let currentMoves = moves > 0 ? moves : 0;
+            let newStreak = (lastPlayDate === yesterdayStr) ? (streak + 1) : (lastPlayDate ? 1 : 0);
             let dailyBase = 1 + Math.floor(newStreak / 20);
             
             db.ref(`users/${userId}`).update({ 
-                moves: dailyBase, 
+                moves: Math.max(currentMoves, dailyBase), 
                 streak: newStreak, 
                 lastPlayDate: today 
             });
@@ -348,7 +364,8 @@
         document.getElementById('moves-display').innerText = moves;
         document.getElementById('best-display').innerText = bestScore + "%";
         document.getElementById('streak-display').innerText = "🔥 " + streak;
-        if (moves > 0) {
+        const hasRefBonus = (referrer && referrer !== userId && !usedRefs[referrer]);
+        if (moves > 0 || hasRefBonus) {
             document.getElementById('btn-again').style.opacity = "1";
         }
     }
@@ -360,8 +377,9 @@
     canvas.width = window.innerWidth; canvas.height = window.innerHeight;
 
     canvas.addEventListener('touchstart', e => {
-        if (isFinished || moves <= 0) {
-            if(moves <= 0) alert(texts[currentLang].alertNoMoves);
+        const hasRefBonus = (referrer && referrer !== userId && !usedRefs[referrer]);
+        if (isFinished || (moves <= 0 && !hasRefBonus)) {
+            if(moves <= 0 && !hasRefBonus) alert(texts[currentLang].alertNoMoves);
             return;
         }
         isDrawing = true; playerTrace = [];
@@ -380,8 +398,16 @@
 
     canvas.addEventListener('touchend', () => {
         if (isDrawing && playerTrace.length > 15) {
-            moves--;
-            db.ref(`users/${userId}/moves`).set(moves);
+            const hasRefBonus = (referrer && referrer !== userId && !usedRefs[referrer]);
+            
+            if (moves > 0) {
+                moves--;
+                db.ref(`users/${userId}/moves`).set(moves);
+            } else if (hasRefBonus) {
+                // Označíme tento konkrétní ref jako použitý tímto uživatelem
+                db.ref(`users/${userId}/usedRefs/${referrer}`).set(true);
+            }
+
             db.ref('global_moves').transaction(v => (v || 0) + 1);
             evaluate();
         }
@@ -414,6 +440,7 @@
         
         showScore(score);
 
+        // Bonus pro majitele linku
         db.ref(`users/${userId}`).once('value', snap => {
             const me = snap.val() || {};
             if (me.invitedBy) {
@@ -456,7 +483,9 @@
     }
 
     function resetBoard() {
-        if (moves <= 0) { alert(texts[currentLang].alertNoMoves); return; }
+        const hasRefBonus = (referrer && referrer !== userId && !usedRefs[referrer]);
+        if (moves <= 0 && !hasRefBonus) { alert(texts[currentLang].alertNoMoves); return; }
+        
         ctx.clearRect(0,0,canvas.width, canvas.height);
         document.getElementById('result-container').style.display = 'none';
         isFinished = false;
