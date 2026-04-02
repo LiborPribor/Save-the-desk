@@ -229,11 +229,22 @@
         }
     };
 
+    const urlParams = new URLSearchParams(window.location.search);
+    const referrer = urlParams.get('ref');
+    let userId = localStorage.getItem('neon_uid') || 'u_' + Math.random().toString(36).substr(2, 9);
+    localStorage.setItem('neon_uid', userId);
+    let userName = localStorage.getItem('neon_name');
+    let moves = 0, streak = 0, bestScore = 0;
+
+    // FIX: Okamžité skrytí login overlay, pokud uživatel existuje v paměti
+    if (userName) document.getElementById('login-overlay').style.display = 'none';
+
     function setLang(l) {
         currentLang = l;
         localStorage.setItem('neon_lang', l);
         document.querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active'));
-        document.getElementById('lang-' + l).classList.add('active');
+        const btn = document.getElementById('lang-' + l);
+        if(btn) btn.classList.add('active');
         const t = texts[l];
         document.getElementById('tut-h-1').innerText = t.tutH1;
         document.getElementById('tut-t-1').innerText = t.tutT1;
@@ -252,20 +263,18 @@
         document.getElementById('menu-info-title').innerText = t.infoTitle;
         document.getElementById('menu-info-body').innerHTML = t.infoBody;
     }
-
-    const urlParams = new URLSearchParams(window.location.search);
-    const referrer = urlParams.get('ref');
-    let userId = localStorage.getItem('neon_uid') || 'u_' + Math.random().toString(36).substr(2, 9);
-    localStorage.setItem('neon_uid', userId);
-    let userName = localStorage.getItem('neon_name');
-    let moves = 0, streak = 0, bestScore = 0;
-
     setLang(currentLang);
 
-    if (userName) {
-        document.getElementById('login-overlay').style.display = 'none';
+    // FIX: Kontrola existence v DB a login
+    db.ref(`users/${userId}`).once('value', snap => {
+        const data = snap.val();
+        if (data && data.name) {
+            userName = data.name;
+            localStorage.setItem('neon_name', userName);
+            document.getElementById('login-overlay').style.display = 'none';
+        }
         initGame();
-    }
+    });
 
     function savePlayerName() {
         const name = document.getElementById('player-name-input').value.trim();
@@ -273,22 +282,33 @@
             userName = name;
             localStorage.setItem('neon_name', name);
             document.getElementById('login-overlay').style.display = 'none';
-            db.ref(`users/${userId}`).update({ name: userName, invitedBy: referrer || null });
-            if (!moves) db.ref(`users/${userId}/moves`).set(1);
+            db.ref(`users/${userId}`).update({ 
+                name: userName, 
+                invitedBy: (referrer && referrer !== userId) ? referrer : null,
+                lastPlayDate: new Date().toLocaleDateString()
+            });
             initGame();
         }
     }
 
     function initGame() {
-        document.getElementById('menu-user-name').innerText = userName;
+        document.getElementById('menu-user-name').innerText = userName || '...';
+        
         db.ref(`users/${userId}`).on('value', snap => {
             const data = snap.val() || {};
             streak = data.streak || 0;
             bestScore = data.bestScore || 0;
             moves = data.moves || 0;
+            
             checkMidnightReset(data.lastPlayDate);
             updateUI();
-            setTimeout(drawRef, 150);
+            
+            if (moves <= 0 && !isDrawing && !isFinished) {
+                document.getElementById('score-display').innerText = "0/0";
+                document.getElementById('score-display').style.fontSize = "30px";
+                document.getElementById('result-container').style.display = 'block';
+                document.getElementById('btn-again').style.opacity = "0.5";
+            }
         });
 
         db.ref('global_moves').on('value', snap => {
@@ -303,31 +323,26 @@
             let html = '';
             list.forEach(u => {
                 const isMe = u.id === userId ? 'me' : '';
-                // Onclick přesunuto na celý řádek
                 html += `<div class="friend-row ${isMe}" onclick="viewPhoto('${u.id}')"><span>${u.name || '...'}</span><b class="score-link">${u.bestScore || 0}%</b></div>`;
             });
             document.getElementById('friends-list').innerHTML = html;
         });
     }
 
-    function viewPhoto(id) {
-        db.ref(`users/${id}/bestPhoto`).once('value', snap => {
-            const val = snap.val();
-            if (val) {
-                document.getElementById('photo-img').src = val;
-                document.getElementById('photo-overlay').style.display = 'flex';
-            }
-        });
-    }
-
     function checkMidnightReset(lastPlayDate) {
         const today = new Date().toLocaleDateString();
-        if (lastPlayDate !== today) {
+        if (lastPlayDate && lastPlayDate !== today) {
             const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
             const yesterdayStr = yesterday.toLocaleDateString();
-            if (lastPlayDate === yesterdayStr) streak++; else streak = 1;
-            let dailyBase = 1 + Math.floor(streak / 20);
-            db.ref(`users/${userId}`).update({ moves: dailyBase, streak: streak, lastPlayDate: today });
+            
+            let newStreak = (lastPlayDate === yesterdayStr) ? (streak + 1) : 1;
+            let dailyBase = 1 + Math.floor(newStreak / 20);
+            
+            db.ref(`users/${userId}`).update({ 
+                moves: dailyBase, 
+                streak: newStreak, 
+                lastPlayDate: today 
+            });
         }
     }
 
@@ -335,6 +350,9 @@
         document.getElementById('moves-display').innerText = moves;
         document.getElementById('best-display').innerText = bestScore + "%";
         document.getElementById('streak-display').innerText = "🔥 " + streak;
+        if (moves > 0) {
+            document.getElementById('btn-again').style.opacity = "1";
+        }
     }
 
     const canvas = document.getElementById('gameCanvas');
@@ -344,7 +362,10 @@
     canvas.width = window.innerWidth; canvas.height = window.innerHeight;
 
     canvas.addEventListener('touchstart', e => {
-        if (isFinished || moves <= 0) return;
+        if (isFinished || moves <= 0) {
+            if(moves <= 0) alert(texts[currentLang].alertNoMoves);
+            return;
+        }
         isDrawing = true; playerTrace = [];
         ctx.clearRect(0,0,canvas.width, canvas.height);
         playerTrace.push({x: e.touches[0].clientX, y: e.touches[0].clientY});
@@ -387,18 +408,19 @@
             totalErr += minDist;
         });
         let score = Math.round(Math.max(0, 100 - ( (totalErr / normPlayer.length) * 12 )));
-        
         const photo = canvas.toDataURL("image/webp", 0.3);
+        
         if (score >= bestScore) {
             db.ref(`users/${userId}`).update({ bestScore: score, bestPhoto: photo });
         }
         
         showScore(score);
 
-        const today = new Date().toLocaleDateString();
+        // FIX: Logika bonusu - dává tah referrerovi, když nový hráč odehraje
         db.ref(`users/${userId}`).once('value', snap => {
             const me = snap.val() || {};
             if (me.invitedBy) {
+                const today = new Date().toLocaleDateString();
                 const bonusPath = `users/${me.invitedBy}/dailyBonuses/${userId}`;
                 db.ref(bonusPath).once('value', bSnap => {
                     if (bSnap.val() !== today) {
@@ -409,6 +431,10 @@
             }
         });
         
+        drawGhost(size, centerX, centerY);
+    }
+
+    function drawGhost(size, centerX, centerY) {
         ctx.setLineDash([8, 8]); ctx.strokeStyle = 'rgba(255, 0, 255, 0.4)'; ctx.lineWidth = 2;
         ctx.beginPath();
         targetShape.forEach((p, i) => {
@@ -428,6 +454,7 @@
 
     function showScore(s) {
         document.getElementById('result-container').style.display = 'block';
+        document.getElementById('score-display').style.fontSize = "60px";
         document.getElementById('score-display').innerText = s + "%";
     }
 
@@ -454,31 +481,31 @@
         r.shadowBlur = 0; r.strokeStyle = '#fff'; r.lineWidth = 4; r.stroke();
     }
 
+    function viewPhoto(id) {
+        db.ref(`users/${id}/bestPhoto`).once('value', snap => {
+            const val = snap.val();
+            if (val) {
+                document.getElementById('photo-img').src = val;
+                document.getElementById('photo-overlay').style.display = 'flex';
+            }
+        });
+    }
+
     async function shareGame() {
         const shareUrl = window.location.origin + window.location.pathname + '?ref=' + userId;
-        const msg = texts[currentLang].shareMsg + ` Skóre: ${bestScore}%`;
-        
-        try {
-            const blob = await (await fetch(canvas.toDataURL())).blob();
-            const file = new File([blob], 'attempt.png', { type: blob.type });
-            
-            if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                await navigator.share({
-                    files: [file],
-                    title: 'Neon Knot',
-                    text: msg,
-                    url: shareUrl
-                });
-            } else {
+        const msg = texts[currentLang].shareMsg + ` Best: ${bestScore}%`;
+        if (navigator.share) {
+            try {
                 await navigator.share({ title: 'Neon Knot', text: msg, url: shareUrl });
-            }
-        } catch (e) {
-            prompt(currentLang === 'cz' ? "Link:" : "Link:", shareUrl);
+            } catch (e) {}
+        } else {
+            prompt("Copy link:", shareUrl);
         }
     }
 
     window.onload = () => { setTimeout(drawRef, 500); };
     window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; drawRef(); });
 </script>
+
 </body>
 </html>
