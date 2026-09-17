@@ -5,19 +5,14 @@
     <title>NEON KNOT</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     
-    <!-- PWA / Web Clip nastavení pro iOS -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="NEON KNOT">
     
-    <!-- Propojení Web App Manifestu pro Android/Chrome -->
     <link rel="manifest" href="manifest.json">
-    
-    <!-- Ikona pro plochu -->
     <link rel="apple-touch-icon" href="https://i.imgur.com/your-icon-512.png">
     
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
 
     <style>
@@ -138,6 +133,12 @@
             color: #888; padding: 5px 10px; border-radius: 5px; font-size: 10px; cursor: pointer;
         }
         .lang-btn.active { color: #ff00ff; border-color: #ff00ff; background: rgba(255, 0, 255, 0.2); }
+
+        .uid-box {
+            font-size: 10px; color: #888; margin-top: 15px; word-break: break-all;
+            background: rgba(255,255,255,0.05); padding: 8px; border-radius: 5px;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -154,6 +155,10 @@
         </div>
         <input type="text" id="player-name-input" class="login-input" placeholder="..." maxlength="12">
         <button class="btn btn-challenge" style="width:100%" onclick="savePlayerName()" id="btn-start">START HRY</button>
+        
+        <div style="margin-top: 15px; font-size: 11px; color: #888; cursor: pointer; text-decoration: underline;" onclick="syncAccount()">
+            Máš už účet z odkazu? Propojit ID
+        </div>
     </div>
 </div>
 
@@ -170,14 +175,19 @@
     
     <div class="info-section">
         <div class="info-header"><div class="info-icon">i</div> <span id="menu-info-title">Instrukce</span></div>
-        <div style="font-size: 11px; color: #ccc; line-height: 1.5;" id="menu-info-body">
-            </div>
+        <div style="font-size: 11px; color: #ccc; line-height: 1.5;" id="menu-info-body"></div>
     </div>
 
-    <button class="btn btn-challenge" style="width:100%; margin-bottom: 25px;" onclick="shareGame()" id="btn-invite">POZVAT KÁMOŠE (+1 TAH)</button>
+    <button class="btn btn-challenge" style="width:100%; margin-bottom: 10px;" onclick="shareGame()" id="btn-invite">POZVAT KÁMOŠE (+1 TAH)</button>
+    <button class="btn btn-ok" style="width:100%; margin-bottom: 25px; border: 1px solid #ff00ff; background: #111;" onclick="syncAccount()">PROPOJIT S ÚČTEM Z ODKAZU</button>
     
     <div style="font-size: 11px; color: #888; text-transform: uppercase; margin-bottom: 10px;" id="menu-top10">TOP 10 ŽEBŘÍČEK</div>
     <div id="friends-list"></div>
+
+    <div class="uid-box" onclick="copyMyLink()">
+        ID účtu: <span id="my-uid-text">...</span><br>
+        <span style="color:#ff00ff; font-size:9px;">(Klikni pro zkopírování tvého ID odkazu)</span>
+    </div>
 </div>
 
 <div id="ui">
@@ -215,16 +225,7 @@
     };
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
-    const auth = firebase.auth();
     
-    let userId = null;
-    let userName = localStorage.getItem('neon_name');
-    let moves = 0, streak = 0, bestScore = 0;
-    let usedRefs = {};
-
-    const urlParams = new URLSearchParams(window.location.search);
-    const referrer = urlParams.get('ref');
-
     let currentLang = localStorage.getItem('neon_lang') || 'cz';
     const texts = {
         cz: {
@@ -233,7 +234,7 @@
             start: "START HRY", invite: "POZVAT KÁMOŠE (+1 TAH)", top10: "TOP 10 ŽEBŘÍČEK",
             labelMoves: "Tahy", labelBest: "Best", labelStreak: "Řada", labelGlobal: "Svět", again: "Znovu", share: "Sdílet",
             nickPlaceholder: "Tvá přezdívka...", infoTitle: "Instrukce", 
-            infoBody: "<b>CO DĚLAT?</b><br>Obkresli vzor jedním tahem.<br><br><b>ULOŽENÍ APKY NA PLOCHU:</b><br>Sdílet - zobrazit další - pridat na plochu<br><br><b>REKORDY:</b><br>Kliknutím na řádek v žebříčku zobrazíš fotku pokusu.<br><br><b>BONUSY:</b><br>Sdílej svůj link. Tah se přičte až kamarád odehraje..<br><br><b>ŘADA:</b><br>Hraj každý den. Za každých 20 dní získáš +1 tah navždy.",
+            infoBody: "<b>CO DĚLAT?</b><br>Obkresli vzor jedním tahem.<br><br><b>PROPOJENÍ APLIKACE A PLOCHY:</b><br>Pokud se ti účet na ploše liší od účtu v Safari, otevři v menu tlačítko 'PROPOJIT S ÚČTEM Z ODKAZU' a vlož svoje ID ze Safari.<br><br><b>REKORDY:</b><br>Kliknutím na řádek v žebříčku zobrazíš fotku pokusu.<br><br><b>BONUSY:</b><br>Sdílej svůj link. Tah se přičte až kamarád odehraje..",
             alertNoMoves: "Dnes už jsi vyčerpal tahy. Přijď po půlnoci!", shareMsg: "Koukni na můj pokus!"
         },
         en: {
@@ -242,40 +243,37 @@
             start: "START GAME", invite: "INVITE FRIENDS (+1 MOVE)", top10: "TOP 10 RANKING",
             labelMoves: "Moves", labelBest: "Best", labelStreak: "Streak", labelGlobal: "World", again: "Again", share: "Share",
             nickPlaceholder: "Your nickname...", infoTitle: "Instructions",
-            infoBody: "<b>HOW TO PLAY?</b><br>Trace the pattern in one go.<br><br><b>SAVE TO HOME SCREEN:</b><br>Share - show more - add to home screen<br><br><b>RECORDS:</b><br>Click any row in the ranking to see the attempt photo.<br><br><b>BONUSES:</b><br>Share your link. Moves added after friends play..<br><br><b>STREAK:</b><br>Play daily. Every 20 days gives you +1 move forever.",
+            infoBody: "<b>HOW TO PLAY?</b><br>Trace the pattern in one go.<br><br><b>LINK HOME SCREEN ACCOUNT:</b><br>If your home screen account differs from Safari, click 'PROPOJIT S ÚČTEM Z ODKAZU' in menu and enter your Safari ID.<br><br><b>RECORDS:</b><br>Click any row in the ranking to see the attempt photo.<br><br><b>BONUSES:</b><br>Share your link. Moves added after friends play..",
             alertNoMoves: "No moves left today. Come back after midnight!", shareMsg: "Check my attempt!"
         }
     };
 
-    function getTodayStr() {
-        return new Date().toISOString().split('T')[0];
+    const urlParams = new URLSearchParams(window.location.search);
+    const referrer = urlParams.get('ref');
+    let urlUid = urlParams.get('uid');
+
+    // LOGIKA IDENTIFIKACE A PROPOJENÍ
+    let userId = urlUid || localStorage.getItem('neon_uid');
+    
+    // Pokud načítáme z URL a liší se od localStorage, prioritizujeme ID z odkazu (tvůj hlavní účet)
+    if (urlUid) {
+        userId = urlUid;
+        localStorage.setItem('neon_uid', userId);
     }
 
-    function getYesterdayStr() {
-        const d = new Date();
-        d.setDate(d.getDate() - 1);
-        return d.toISOString().split('T')[0];
+    if (!userId) {
+        userId = 'u_' + Math.random().toString(36).substr(2, 9);
+        localStorage.setItem('neon_uid', userId);
     }
 
-    // Automatické přihlášení zařízení přes Firebase Auth
-    auth.signInAnonymously().then(userCredential => {
-        userId = userCredential.user.uid;
+    let userName = localStorage.getItem('neon_name');
+    let moves = 0, streak = 0, bestScore = 0;
+    let usedRefs = {};
 
-        db.ref(`users/${userId}`).once('value', snap => {
-            const data = snap.val();
-            if (data && data.name) {
-                userName = data.name;
-                localStorage.setItem('neon_name', userName);
-                document.getElementById('login-overlay').style.display = 'none';
-            } else if (userName) {
-                document.getElementById('login-overlay').style.display = 'none';
-                savePlayerNameDirect(userName);
-            }
-            initGame();
-        });
-    }).catch(error => {
-        console.error("Chyba automatického přihlášení:", error);
-    });
+    function getTodayStr() { return new Date().toISOString().split('T')[0]; }
+    function getYesterdayStr() { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().split('T')[0]; }
+
+    if (userName) document.getElementById('login-overlay').style.display = 'none';
 
     function setLang(l) {
         currentLang = l;
@@ -303,40 +301,56 @@
     }
     setLang(currentLang);
 
-    function savePlayerNameDirect(name) {
-        if (!userId) return;
-        userName = name;
-        localStorage.setItem('neon_name', name);
-        
-        db.ref(`users/${userId}`).once('value', snap => {
-            if (!snap.exists()) {
-                const isValidRef = (referrer && referrer !== userId);
-                const initialMoves = isValidRef ? 2 : 1;
-
-                db.ref(`users/${userId}`).set({ 
-                    name: userName, 
-                    moves: initialMoves, 
-                    streak: 0,
-                    lastPlayDate: getTodayStr(),
-                    invitedBy: isValidRef ? referrer : null
-                });
-            } else {
-                db.ref(`users/${userId}`).update({ name: userName });
-            }
-            initGame();
-        });
-    }
+    db.ref(`users/${userId}`).once('value', snap => {
+        const data = snap.val();
+        if (data && data.name) {
+            userName = data.name;
+            localStorage.setItem('neon_name', userName);
+            document.getElementById('login-overlay').style.display = 'none';
+        }
+        document.getElementById('my-uid-text').innerText = userId;
+        initGame();
+    });
 
     function savePlayerName() {
         const name = document.getElementById('player-name-input').value.trim();
         if (name.length > 1) {
+            userName = name;
+            localStorage.setItem('neon_name', name);
             document.getElementById('login-overlay').style.display = 'none';
-            savePlayerNameDirect(name);
+            
+            db.ref(`users/${userId}`).once('value', snap => {
+                if (!snap.exists()) {
+                    const isValidRef = (referrer && referrer !== userId);
+                    const initialMoves = isValidRef ? 2 : 1;
+
+                    db.ref(`users/${userId}`).set({ 
+                        name: userName, 
+                        moves: initialMoves, 
+                        streak: 0,
+                        lastPlayDate: getTodayStr(),
+                        invitedBy: isValidRef ? referrer : null
+                    });
+                } else {
+                    db.ref(`users/${userId}`).update({ name: userName });
+                }
+                initGame();
+            });
+        }
+    }
+
+    // RUČNÍ PROPOJENÍ ÚČTŮ PRO PLOCHU
+    function syncAccount() {
+        const input = prompt("Zadej tvé ID účtu ze Safari (najdeš ho v dolní části menu v Safari pod 'ID účtu'):");
+        if (input && input.trim().length > 3) {
+            const cleanId = input.trim();
+            localStorage.setItem('neon_uid', cleanId);
+            alert("Účet propojen! Aplikace se nyní restartuje.");
+            window.location.href = window.location.pathname;
         }
     }
 
     function initGame() {
-        if (!userId) return;
         document.getElementById('menu-user-name').innerText = userName || '...';
         
         db.ref(`users/${userId}`).on('value', snap => {
@@ -550,6 +564,16 @@
 
     function getBaseUrl() {
         return window.location.origin + window.location.pathname;
+    }
+
+    function copyMyLink() {
+        const myUrl = getBaseUrl() + '?uid=' + userId;
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(myUrl);
+            alert("Odkaz tvého účtu zkopírován! Vlož ho na ploše pro propojení.");
+        } else {
+            prompt("Tvůj odkaz profilu:", myUrl);
+        }
     }
 
     async function shareGame() {
