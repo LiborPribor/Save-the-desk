@@ -20,7 +20,7 @@
             position: fixed;
         }
         
-        canvas#gameCanvas { display: block; position: absolute; top: 0; left: 0; z-index: 1; }
+        canvas#gameCanvas { display: block; position: absolute; top: 0; left: 0; z-index: 1; touch-action: none; }
         
         #ui { 
             position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
@@ -100,6 +100,7 @@
         .btn { border: none; padding: 10px 15px; border-radius: 8px; font-weight: bold; cursor: pointer; text-transform: uppercase; font-size: 10px; }
         .btn-challenge { background: #ff00ff; color: #fff; }
         .btn-ok { background: #333; color: #fff; }
+        .btn-secondary { background: rgba(255,255,255,0.1); color: #ccc; border: 1px solid #444; }
 
         #reference-box { 
             position: absolute; 
@@ -119,6 +120,14 @@
             align-items: center; justify-content: center; flex-direction: column;
         }
         #photo-img { max-width: 90%; max-height: 70%; border: 2px solid #ff00ff; border-radius: 10px; }
+
+        #custom-toast {
+            position: fixed; bottom: 70px; left: 50%; transform: translateX(-50%);
+            background: rgba(20, 0, 20, 0.95); border: 1px solid #ff00ff;
+            color: #fff; padding: 12px 20px; border-radius: 8px; font-size: 12px;
+            box-shadow: 0 0 15px rgba(255,0,255,0.4); z-index: 3000; display: none;
+            text-align: center; pointer-events: none;
+        }
 
         #lang-switcher {
             position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
@@ -153,11 +162,16 @@
     <p style="margin-top:20px; color:#ff00ff; font-weight:bold;">KLIKNI KAMKOLIV PRO ZAVŘENÍ</p>
 </div>
 
+<div id="custom-toast"></div>
+
 <canvas id="gameCanvas"></canvas>
 
 <div id="side-menu">
-    <div style="text-align:right; font-size:28px;" onclick="toggleMenu()">✕</div>
-    <h2 id="menu-user-name" style="color:#ff00ff; margin-bottom: 10px;">Hráč</h2>
+    <div style="text-align:right; font-size:28px; cursor:pointer;" onclick="toggleMenu()">✕</div>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px;">
+        <h2 id="menu-user-name" style="color:#ff00ff; margin:0;">Hráč</h2>
+        <button class="btn btn-secondary" onclick="openRenameModal()" id="btn-rename">Změnit jméno</button>
+    </div>
     
     <div class="info-section">
         <div class="info-header"><div class="info-icon">i</div> <span id="menu-info-title">Instrukce</span></div>
@@ -216,7 +230,7 @@
             labelMoves: "Tahy", labelBest: "Best", labelStreak: "Řada", labelGlobal: "Svět", again: "Znovu", share: "Sdílet",
             nickPlaceholder: "Tvá přezdívka...", infoTitle: "Instrukce", 
             infoBody: "<b>CO DĚLAT?</b><br>Obkresli vzor jedním tahem.<br><br><b>ULOŽENÍ APKY NA PLOCHU:</b><br>Sdílet - zobrazit další - pridat na plochu<br><br><b>REKORDY:</b><br>Kliknutím na řádek v žebříčku zobrazíš fotku pokusu.<br><br><b>BONUSY:</b><br>Sdílej svůj link. Tah se přičte až kamarád odehraje..<br><br><b>ŘADA:</b><br>Hraj každý den. Za každých 20 dní získáš +1 tah navždy.",
-            alertNoMoves: "Dnes už jsi vyčerpal tahy. Přijď po půlnoci!", shareMsg: "Koukni na můj pokus!"
+            alertNoMoves: "Dnes už jsi vyčerpal tahy. Přijď po půlnoci!", shareMsg: "Koukni na můj pokus!", renameBtn: "Změnit jméno"
         },
         en: {
             tutH1: "HOW TO PLAY?", tutT1: "Trace the pattern (top right) in one continuous stroke.",
@@ -225,7 +239,7 @@
             labelMoves: "Moves", labelBest: "Best", labelStreak: "Streak", labelGlobal: "World", again: "Again", share: "Share",
             nickPlaceholder: "Your nickname...", infoTitle: "Instructions",
             infoBody: "<b>HOW TO PLAY?</b><br>Trace the pattern in one go.<br><br><b>SAVE TO HOME SCREEN:</b><br>Share - show more - add to home screen<br><br><b>RECORDS:</b><br>Click any row in the ranking to see the attempt photo.<br><br><b>BONUSES:</b><br>Share your link. Moves added after friends play..<br><br><b>STREAK:</b><br>Play daily. Every 20 days gives you +1 move forever.",
-            alertNoMoves: "No moves left today. Come back after midnight!", shareMsg: "Check my attempt!"
+            alertNoMoves: "No moves left today. Come back after midnight!", shareMsg: "Check my attempt!", renameBtn: "Change name"
         }
     };
 
@@ -238,6 +252,13 @@
     let usedRefs = {};
 
     if (userName) document.getElementById('login-overlay').style.display = 'none';
+
+    function showToast(msg) {
+        const toast = document.getElementById('custom-toast');
+        toast.innerText = msg;
+        toast.style.display = 'block';
+        setTimeout(() => { toast.style.display = 'none'; }, 2500);
+    }
 
     function setLang(l) {
         currentLang = l;
@@ -262,6 +283,7 @@
         document.getElementById('player-name-input').placeholder = t.nickPlaceholder;
         document.getElementById('menu-info-title').innerText = t.infoTitle;
         document.getElementById('menu-info-body').innerHTML = t.infoBody;
+        document.getElementById('btn-rename').innerText = t.renameBtn;
     }
     setLang(currentLang);
 
@@ -281,6 +303,7 @@
             userName = name;
             localStorage.setItem('neon_name', name);
             document.getElementById('login-overlay').style.display = 'none';
+            document.getElementById('menu-user-name').innerText = userName;
             
             db.ref(`users/${userId}`).once('value', snap => {
                 if (!snap.exists()) {
@@ -297,6 +320,12 @@
                 initGame();
             });
         }
+    }
+
+    function openRenameModal() {
+        document.getElementById('player-name-input').value = userName || '';
+        document.getElementById('login-overlay').style.display = 'flex';
+        toggleMenu();
     }
 
     function initGame() {
@@ -340,8 +369,7 @@
             document.getElementById('friends-list').innerHTML = html;
         });
     }
-
-    function checkMidnightReset(lastPlayDate) {
+nghtReset(lastPlayDate) {
         const today = new Date().toLocaleDateString();
         if (!lastPlayDate || lastPlayDate !== today) {
             const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
@@ -375,27 +403,27 @@
     let playerTrace = [], isDrawing = false, isFinished = false;
     canvas.width = window.innerWidth; canvas.height = window.innerHeight;
 
-    canvas.addEventListener('touchstart', e => {
+    // Sjednocené ovládání přes Pointer Events (Myš + Dotyk)
+    canvas.addEventListener('pointerdown', e => {
         const hasRefBonus = (referrer && referrer !== userId && !usedRefs[referrer]);
         if (isFinished || (moves <= 0 && !hasRefBonus)) {
-            if(moves <= 0 && !hasRefBonus) alert(texts[currentLang].alertNoMoves);
+            if(moves <= 0 && !hasRefBonus) showToast(texts[currentLang].alertNoMoves);
             return;
         }
         isDrawing = true; playerTrace = [];
         ctx.clearRect(0,0,canvas.width, canvas.height);
-        playerTrace.push({x: e.touches[0].clientX, y: e.touches[0].clientY});
+        playerTrace.push({x: e.clientX, y: e.clientY});
     });
 
-    canvas.addEventListener('touchmove', e => {
+    canvas.addEventListener('pointermove', e => {
         if (!isDrawing) return;
-        const t = e.touches[0];
         const last = playerTrace[playerTrace.length-1];
         ctx.strokeStyle = '#fff'; ctx.lineWidth = 5; ctx.shadowBlur = 15; ctx.shadowColor = '#ff00ff'; ctx.lineCap = 'round';
-        ctx.beginPath(); ctx.moveTo(last.x, last.y); ctx.lineTo(t.clientX, t.clientY); ctx.stroke();
-        playerTrace.push({x: t.clientX, y: t.clientY});
+        ctx.beginPath(); ctx.moveTo(last.x, last.y); ctx.lineTo(e.clientX, e.clientY); ctx.stroke();
+        playerTrace.push({x: e.clientX, y: e.clientY});
     });
 
-    canvas.addEventListener('touchend', () => {
+    const handlePointerUp = () => {
         if (isDrawing && playerTrace.length > 15) {
             const hasRefBonus = (referrer && referrer !== userId && !usedRefs[referrer]);
             
@@ -410,7 +438,10 @@
             evaluate();
         }
         isDrawing = false;
-    });
+    };
+
+    canvas.addEventListener('pointerup', handlePointerUp);
+    canvas.addEventListener('pointercancel', handlePointerUp);
 
     function evaluate() {
         isFinished = true;
@@ -481,7 +512,7 @@
 
     function resetBoard() {
         const hasRefBonus = (referrer && referrer !== userId && !usedRefs[referrer]);
-        if (moves <= 0 && !hasRefBonus) { alert(texts[currentLang].alertNoMoves); return; }
+        if (moves <= 0 && !hasRefBonus) { showToast(texts[currentLang].alertNoMoves); return; }
         
         ctx.clearRect(0,0,canvas.width, canvas.height);
         document.getElementById('result-container').style.display = 'none';
@@ -522,7 +553,12 @@
                 await navigator.share({ title: 'Neon Knot', text: msg, url: shareUrl });
             } catch (e) {}
         } else {
-            prompt("Copy link:", shareUrl);
+            if (navigator.clipboard) {
+                await navigator.clipboard.writeText(shareUrl);
+                showToast("Odkaz zkopírován do schránky!");
+            } else {
+                prompt("Zkopíruj odkaz:", shareUrl);
+            }
         }
     }
 
