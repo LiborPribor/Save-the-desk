@@ -557,8 +557,12 @@
         });
     }
 
+    function getBaseUrl() {
+        return window.location.origin + window.location.pathname;
+    }
+
     function copyMyLink() {
-        const myUrl = window.location.origin + window.location.pathname + '?uid=' + userId;
+        const myUrl = getBaseUrl() + '?uid=' + userId;
         if (navigator.clipboard) {
             navigator.clipboard.writeText(myUrl);
             alert("Odkaz tvého profilu byl zkopírován! Otevři ho na jiném zařízení pro načtení účtu.");
@@ -568,7 +572,7 @@
     }
 
     async function shareGame() {
-        const shareUrl = window.location.origin + window.location.pathname + '?ref=' + userId;
+        const shareUrl = getBaseUrl() + '?ref=' + userId;
         const msg = texts[currentLang].shareMsg + ` Best: ${bestScore}%`;
         if (navigator.share) {
             try {
