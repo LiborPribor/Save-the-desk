@@ -375,7 +375,7 @@
     let playerTrace = [], isDrawing = false, isFinished = false;
     canvas.width = window.innerWidth; canvas.height = window.innerHeight;
 
-    function handleStart(x, y) {
+    canvas.addEventListener('touchstart', e => {
         const hasRefBonus = (referrer && referrer !== userId && !usedRefs[referrer]);
         if (isFinished || (moves <= 0 && !hasRefBonus)) {
             if(moves <= 0 && !hasRefBonus) alert(texts[currentLang].alertNoMoves);
@@ -383,18 +383,19 @@
         }
         isDrawing = true; playerTrace = [];
         ctx.clearRect(0,0,canvas.width, canvas.height);
-        playerTrace.push({x: x, y: y});
-    }
+        playerTrace.push({x: e.touches[0].clientX, y: e.touches[0].clientY});
+    });
 
-    function handleMove(x, y) {
+    canvas.addEventListener('touchmove', e => {
         if (!isDrawing) return;
+        const t = e.touches[0];
         const last = playerTrace[playerTrace.length-1];
         ctx.strokeStyle = '#fff'; ctx.lineWidth = 5; ctx.shadowBlur = 15; ctx.shadowColor = '#ff00ff'; ctx.lineCap = 'round';
-        ctx.beginPath(); ctx.moveTo(last.x, last.y); ctx.lineTo(x, y); ctx.stroke();
-        playerTrace.push({x: x, y: y});
-    }
+        ctx.beginPath(); ctx.moveTo(last.x, last.y); ctx.lineTo(t.clientX, t.clientY); ctx.stroke();
+        playerTrace.push({x: t.clientX, y: t.clientY});
+    });
 
-    function handleEnd() {
+    canvas.addEventListener('touchend', () => {
         if (isDrawing && playerTrace.length > 15) {
             const hasRefBonus = (referrer && referrer !== userId && !usedRefs[referrer]);
             
@@ -409,15 +410,7 @@
             evaluate();
         }
         isDrawing = false;
-    }
-
-    canvas.addEventListener('touchstart', e => handleStart(e.touches[0].clientX, e.touches[0].clientY));
-    canvas.addEventListener('touchmove', e => handleMove(e.touches[0].clientX, e.touches[0].clientY));
-    canvas.addEventListener('touchend', handleEnd);
-
-    canvas.addEventListener('mousedown', e => handleStart(e.clientX, e.clientY));
-    canvas.addEventListener('mousemove', e => handleMove(e.clientX, e.clientY));
-    canvas.addEventListener('mouseup', handleEnd);
+    });
 
     function evaluate() {
         isFinished = true;
