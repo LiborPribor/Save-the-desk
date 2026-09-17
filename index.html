@@ -129,6 +129,12 @@
             color: #888; padding: 5px 10px; border-radius: 5px; font-size: 10px; cursor: pointer;
         }
         .lang-btn.active { color: #ff00ff; border-color: #ff00ff; background: rgba(255, 0, 255, 0.2); }
+
+        .uid-box {
+            font-size: 10px; color: #888; margin-top: 15px; word-break: break-all;
+            background: rgba(255,255,255,0.05); padding: 8px; border-radius: 5px;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -169,6 +175,11 @@
     
     <div style="font-size: 11px; color: #888; text-transform: uppercase; margin-bottom: 10px;" id="menu-top10">TOP 10 ŽEBŘÍČEK</div>
     <div id="friends-list"></div>
+
+    <div class="uid-box" onclick="copyMyLink()">
+        ID profilu: <span id="my-uid-text">...</span><br>
+        <span style="color:#ff00ff; font-size:9px;">(Klikni pro zkopírování odkazu účtu)</span>
+    </div>
 </div>
 
 <div id="ui">
@@ -231,12 +242,19 @@
 
     const urlParams = new URLSearchParams(window.location.search);
     const referrer = urlParams.get('ref');
+    const urlUid = urlParams.get('uid');
 
-    // Použijeme stávající ID z prohlížeče, pokud existuje
-    let userId = localStorage.getItem('neon_uid');
+    // Nahození ID: 1. Z URL parametru ?uid=, 2. Z localStorage, 3. Vytvořit nové
+    let userId = urlUid || localStorage.getItem('neon_uid');
     if (!userId) {
         userId = 'u_' + Math.random().toString(36).substr(2, 9);
-        localStorage.setItem('neon_uid', userId);
+    }
+    localStorage.setItem('neon_uid', userId);
+
+    // Aktualizujeme URL adresu bez reloadu, aby obsahovala ?uid= (důležité pro přidání na plochu)
+    if (window.history && window.history.replaceState && !urlUid) {
+        const newUrl = window.location.pathname + '?uid=' + userId + (referrer ? '&ref=' + referrer : '');
+        window.history.replaceState(null, '', newUrl);
     }
 
     let userName = localStorage.getItem('neon_name');
@@ -288,6 +306,7 @@
             localStorage.setItem('neon_name', userName);
             document.getElementById('login-overlay').style.display = 'none';
         }
+        document.getElementById('my-uid-text').innerText = userId;
         initGame();
     });
 
@@ -528,6 +547,16 @@
                 document.getElementById('photo-overlay').style.display = 'flex';
             }
         });
+    }
+
+    function copyMyLink() {
+        const myUrl = window.location.origin + window.location.pathname + '?uid=' + userId;
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(myUrl);
+            alert("Odkaz tvého profilu byl zkopírován! Otevři ho na jiném zařízení pro načtení účtu.");
+        } else {
+            prompt("Tvůj odkaz profilu:", myUrl);
+        }
     }
 
     async function shareGame() {
