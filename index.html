@@ -109,13 +109,20 @@
             position: absolute; 
             top: 170px; 
             right: 20px; 
-            width: 70px; 
-            height: 70px; 
-            border: 2px solid #ff00ff; border-radius: 12px; background: rgba(0,0,0,0.8); 
-            display: flex; align-items: center; justify-content: center; 
+            width: 80px; 
+            height: 110px; 
+            border: 2px solid #ff00ff; border-radius: 12px; background: rgba(0,0,0,0.85); 
+            display: flex; flex-direction: column; align-items: center; justify-content: space-between; 
+            padding: 5px; box-sizing: border-box;
             box-shadow: 0 0 15px rgba(255,0,255,0.3); pointer-events: auto;
         }
         #refCanvas { width: 60px; height: 60px; }
+        
+        #next-preview {
+            width: 100%; display: flex; flex-direction: column; align-items: center; border-top: 1px dashed rgba(255,0,255,0.3); padding-top: 4px;
+        }
+        #next-preview span { font-size: 7px; color: #888; text-transform: uppercase; margin-bottom: 2px; }
+        #nextCanvas { width: 30px; height: 30px; opacity: 0.6; }
 
         #photo-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
@@ -133,6 +140,13 @@
             color: #888; padding: 5px 10px; border-radius: 5px; font-size: 10px; cursor: pointer;
         }
         .lang-btn.active { color: #ff00ff; border-color: #ff00ff; background: rgba(255, 0, 255, 0.2); }
+
+        .countdown-box {
+            background: rgba(0,255,255,0.1); border: 1px solid rgba(0,255,255,0.3);
+            border-radius: 8px; padding: 8px; text-align: center; margin-bottom: 15px;
+        }
+        .countdown-title { font-size: 9px; color: #00ffff; text-transform: uppercase; letter-spacing: 1px; }
+        .countdown-timer { font-size: 14px; font-weight: bold; color: #fff; margin-top: 3px; font-family: monospace; }
     </style>
 </head>
 <body>
@@ -163,6 +177,11 @@
     <div style="text-align:right; font-size:28px;" onclick="toggleMenu()">✕</div>
     <h2 id="menu-user-name" style="color:#ff00ff; margin-bottom: 10px;">Hráč</h2>
     
+    <div class="countdown-box">
+        <div class="countdown-title" id="cd-title">Nová výzva za</div>
+        <div class="countdown-timer" id="cycle-timer">00d 00h 00m</div>
+    </div>
+
     <div class="info-section">
         <div class="info-header"><div class="info-icon">i</div> <span id="menu-info-title">Instrukce</span></div>
         <div style="font-size: 11px; color: #ccc; line-height: 1.5;" id="menu-info-body"></div>
@@ -191,7 +210,14 @@
             <button class="btn btn-challenge" onclick="shareGame()" id="btn-share">Sdílet</button>
         </div>
     </div>
-    <div id="reference-box" onclick="drawRef()"><canvas id="refCanvas" width="200" height="200"></canvas></div>
+    
+    <div id="reference-box" onclick="drawRef()">
+        <canvas id="refCanvas" width="200" height="200"></canvas>
+        <div id="next-preview">
+            <span>Příští</span>
+            <canvas id="nextCanvas" width="100" height="100"></canvas>
+        </div>
+    </div>
 
     <div id="lang-switcher">
         <div class="lang-btn" id="lang-cz" onclick="setLang('cz')">CZ</div>
@@ -219,7 +245,8 @@
             labelMoves: "Tahy", labelBest: "Best", labelStreak: "Řada", labelGlobal: "Svět", again: "Znovu", share: "Sdílet",
             nickPlaceholder: "Tvá přezdívka...", infoTitle: "Instrukce", 
             infoBody: "<b>CO DĚLAT?</b><br>Obkresli vzor jedním tahem.<br><br><b>CYKLUS HRY:</b><br>Každých 10 dní se mění vzor a nuluje se žebříček.<br><br><b>BONUSY:</b><br>Sdílej svůj link. Tah se přičte až kamarád odehraje..",
-            alertNoMoves: "Dnes už jsi vyčerpal tahy. Přijď po půlnoci!", shareMsg: "Koukni na můj pokus!"
+            alertNoMoves: "Dnes už jsi vyčerpal tahy. Přijď po půlnoci!", shareMsg: "Koukni na můj pokus!",
+            cdTitle: "Nová výzva za", nextLabel: "Příští"
         },
         en: {
             tutH1: "HOW TO PLAY?", tutT1: "Trace the pattern (top right) in one continuous stroke.",
@@ -228,7 +255,8 @@
             labelMoves: "Moves", labelBest: "Best", labelStreak: "Streak", labelGlobal: "World", again: "Again", share: "Share",
             nickPlaceholder: "Your nickname...", infoTitle: "Instructions",
             infoBody: "<b>HOW TO PLAY?</b><br>Trace the pattern in one go.<br><br><b>GAME CYCLE:</b><br>Pattern changes and leaderboard resets every 10 days.<br><br><b>BONUSES:</b><br>Share your link. Moves added after friends play..",
-            alertNoMoves: "No moves left today. Come back after midnight!", shareMsg: "Check my attempt!"
+            alertNoMoves: "No moves left today. Come back after midnight!", shareMsg: "Check my attempt!",
+            cdTitle: "Next shape in", nextLabel: "Next"
         }
     };
 
@@ -236,11 +264,13 @@
     const CYCLE_DAYS = 10;
     const currentCycleIndex = Math.floor(Date.now() / (1000 * 60 * 60 * 24 * CYCLE_DAYS));
 
-    // Původní vzor pro první cyklus
-    const baseTargetShape = [{x:50,y:10},{x:85,y:40},{x:50,y:55},{x:15,y:70},{x:50,y:95},{x:85,y:70},{x:50,y:55},{x:15,y:40},{x:50,y:10}];
+    // PŮVODNÍ NEKONECNÝ UZEL Z KÓDU
+    const baseTargetShape = [
+        {x:50,y:10},{x:85,y:40},{x:50,y:55},{x:15,y:70},{x:50,y:95},{x:85,y:70},{x:50,y:55},{x:15,y:40},{x:50,y:10}
+    ];
 
     function generateCycleShape(cycle) {
-        if (cycle % 5 === 0) return baseTargetShape; // Návrat k původnímu vzoru každý 5. cyklus (nebo v 1. cyklu)
+        if (cycle % 5 === 0) return baseTargetShape; // Původní uzel každý 5. cyklus (a v 1. cyklu)
 
         let points = [];
         let steps = 80;
@@ -250,23 +280,22 @@
             let t = (i / steps) * Math.PI * 2;
             let x = 0, y = 0;
 
-            if (type === 1) { // Lissajous figure (Knot-like)
+            if (type === 1) { // Lissajous figure
                 x = Math.sin(2 * t);
                 y = Math.sin(3 * t);
             } else if (type === 2) { // Rose Curve
                 let r = Math.cos(2 * t);
                 x = r * Math.cos(t);
                 y = r * Math.sin(t);
-            } else if (type === 3) { // Heart/Special Shape
+            } else if (type === 3) { // Srdce
                 x = 16 * Math.pow(Math.sin(t), 3) / 16;
                 y = -(13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t)) / 16;
-            } else { // Star Polygon
+            } else { // Hvězda
                 let r = (i % 2 === 0) ? 1 : 0.4;
                 x = r * Math.cos(t);
                 y = r * Math.sin(t);
             }
 
-            // Normalizace do rozsahu (15 až 85)
             points.push({
                 x: Math.round(50 + x * 35),
                 y: Math.round(50 + y * 35)
@@ -276,6 +305,7 @@
     }
 
     const targetShape = generateCycleShape(currentCycleIndex);
+    const nextTargetShape = generateCycleShape(currentCycleIndex + 1);
 
     const urlParams = new URLSearchParams(window.location.search);
     const referrer = urlParams.get('ref');
@@ -323,6 +353,8 @@
         document.getElementById('player-name-input').placeholder = t.nickPlaceholder;
         document.getElementById('menu-info-title').innerText = t.infoTitle;
         document.getElementById('menu-info-body').innerHTML = t.infoBody;
+        document.getElementById('cd-title').innerText = t.cdTitle;
+        document.querySelector('#next-preview span').innerText = t.nextLabel;
     }
     setLang(currentLang);
 
@@ -330,7 +362,6 @@
     db.ref('system/currentCycle').once('value', snap => {
         const savedCycle = snap.val();
         if (savedCycle === null || savedCycle < currentCycleIndex) {
-            // Nastala změna cyklu -> vynulovat pouze skóre a fotky u všech uživatelů
             db.ref('users').once('value', usersSnap => {
                 const users = usersSnap.val();
                 let updates = {};
@@ -410,7 +441,7 @@
             const users = snap.val();
             let list = [];
             for (let id in users) {
-                if (users[id].bestScore > 0) { // Zobrazit v žebříčku jen odehrané
+                if (users[id].bestScore > 0) {
                     list.push({ ...users[id], id: id });
                 }
             }
@@ -422,6 +453,21 @@
             });
             document.getElementById('friends-list').innerHTML = html || '<div style="color:#666; font-size:11px; padding:10px;">Zatím žádné rekordy v tomto cyklu.</div>';
         });
+
+        startCountdownTimer();
+    }
+
+    function startCountdownTimer() {
+        setInterval(() => {
+            const nextCycleTime = (currentCycleIndex + 1) * CYCLE_DAYS * 24 * 60 * 60 * 1000;
+            const diff = nextCycleTime - Date.now();
+            if (diff > 0) {
+                const d = Math.floor(diff / (1000 * 60 * 60 * 24));
+                const h = Math.floor((diff / (1000 * 60 * 60)) % 24);
+                const m = Math.floor((diff / 1000 / 60) % 60);
+                document.getElementById('cycle-timer').innerText = `${d}d ${h < 10 ? '0':''}${h}h ${m < 10 ? '0':''}${m}m`;
+            }
+        }, 1000);
     }
 
     function checkMidnightReset(lastPlayDate) {
@@ -574,16 +620,29 @@
     function toggleMenu() { document.getElementById('side-menu').classList.toggle('open'); }
 
     function drawRef() {
+        // Hlavní náhled
         const rCanvas = document.getElementById('refCanvas');
-        if(!rCanvas) return;
-        const r = rCanvas.getContext('2d');
-        r.clearRect(0,0,200,200);
-        r.shadowBlur = 15; r.shadowColor = '#ff00ff';
-        r.strokeStyle = '#ff00ff'; r.lineWidth = 12; r.lineCap = 'round'; r.lineJoin = 'round';
-        r.beginPath();
-        targetShape.forEach((p, i) => { if(i === 0) r.moveTo(p.x*2, p.y*2); else r.lineTo(p.x*2, p.y*2); });
-        r.stroke();
-        r.shadowBlur = 0; r.strokeStyle = '#fff'; r.lineWidth = 4; r.stroke();
+        if(rCanvas) {
+            const r = rCanvas.getContext('2d');
+            r.clearRect(0,0,200,200);
+            r.shadowBlur = 15; r.shadowColor = '#ff00ff';
+            r.strokeStyle = '#ff00ff'; r.lineWidth = 12; r.lineCap = 'round'; r.lineJoin = 'round';
+            r.beginPath();
+            targetShape.forEach((p, i) => { if(i === 0) r.moveTo(p.x*2, p.y*2); else r.lineTo(p.x*2, p.y*2); });
+            r.stroke();
+            r.shadowBlur = 0; r.strokeStyle = '#fff'; r.lineWidth = 4; r.stroke();
+        }
+
+        // Náhled příštího cyklu
+        const nCanvas = document.getElementById('nextCanvas');
+        if(nCanvas) {
+            const n = nCanvas.getContext('2d');
+            n.clearRect(0,0,100,100);
+            n.strokeStyle = '#00ffff'; n.lineWidth = 4; n.lineCap = 'round'; n.lineJoin = 'round';
+            n.beginPath();
+            nextTargetShape.forEach((p, i) => { if(i === 0) n.moveTo(p.x, p.y); else n.lineTo(p.x, p.y); });
+            n.stroke();
+        }
     }
 
     function viewPhoto(id) {
