@@ -566,7 +566,7 @@
             }
             totalErr += minDist;
         });
-        let score = Math.round(Math.max(0, 100 - ( (totalErr / normPlayer.length) * 12 )));
+        let score = Math.round(Math.max(0, 100 - ( (totalErr / normPlayer.length) * 9 )));
         const photo = canvas.toDataURL("image/webp", 0.3);
         
         if (score >= bestScore) {
