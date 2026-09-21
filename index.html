@@ -72,12 +72,11 @@
         #menu-btn { width: 45px; height: 45px; display: flex; align-items: center; justify-content: center; font-size: 24px; cursor: pointer; color: #ff00ff; }
         
         #stats-bar { flex-grow: 1; display: flex; justify-content: space-around; align-items: center; }
-        .stat-item { text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .stat-item { text-align: center; }
         .stat-label { font-size: 8px; color: #888; text-transform: uppercase; }
-        .stat-value { font-size: 13px; font-weight: 900; color: #ff00ff; display: block; }
-        .moves-count { color: #00ffff !important; font-size: 15px; }
+        .stat-value { font-size: 15px; font-weight: 900; color: #ff00ff; display: block; }
+        .moves-count { color: #00ffff !important; }
         .global-count { color: #ffffff !important; }
-        #nextCanvas { width: 20px; height: 20px; margin-top: 2px; }
 
         #side-menu { 
             position: absolute; top: 0; left: -100%; width: 85%; height: 100%; 
@@ -171,7 +170,7 @@
 
     <button class="btn btn-challenge" style="width:100%; margin-bottom: 25px;" onclick="shareGame()" id="btn-invite">POZVAT KÁMOŠE (+1 TAH)</button>
     
-    <div style="font-size: 11px; color: #888; text-transform: uppercase; margin-bottom: 10px;" id="menu-top10">TOP 10 ŽEBŘÍČEK</div>
+    <div style="font-size: 11px; color: #888; text-transform: uppercase; margin-bottom: 10px;" id="menu-top10">TOP 10 ŽEBŘÍČEK (10 DENNÍ CYKLUS)</div>
     <div id="friends-list"></div>
 </div>
 
@@ -183,8 +182,6 @@
             <div class="stat-item"><span class="stat-label" id="label-best">Best</span><span id="best-display" class="stat-value">0%</span></div>
             <div class="stat-item"><span class="stat-label" id="label-streak">Řada</span><span id="streak-display" class="stat-value">🔥 0</span></div>
             <div class="stat-item"><span class="stat-label" id="label-global">Svět</span><span id="global-display" class="stat-value global-count">0</span></div>
-            <div class="stat-item"><span class="stat-label" id="label-timer">Konec</span><span id="timer-display" class="stat-value">0d</span></div>
-            <div class="stat-item"><span class="stat-label" id="label-next">Příští</span><canvas id="nextCanvas" width="50" height="50"></canvas></div>
         </div>
     </div>
     <div id="result-container" class="glass-panel">
@@ -203,66 +200,6 @@
 </div>
 
 <script>
-    const SHAPES = [
-        [{x:50,y:10},{x:85,y:40},{x:50,y:55},{x:15,y:70},{x:50,y:95},{x:85,y:70},{x:50,y:55},{x:15,y:40},{x:50,y:10}], // 0: Osmičkový uzlík
-        [{x:50,y:10},{x:90,y:90},{x:10,y:35},{x:90,y:35},{x:10,y:90},{x:50,y:10}], // 1: Pentagram
-        [{x:50,y:10},{x:85,y:25},{x:85,y:75},{x:50,y:90},{x:15,y:75},{x:15,y:25},{x:50,y:10}], // 2: Šestagón
-        [{x:15,y:15},{x:85,y:15},{x:85,y:85},{x:15,y:85},{x:15,y:15},{x:85,y:85},{x:15,y:85},{x:85,y:15}], // 3: Čtverec s úhlopříčkami
-        [{x:50,y:10},{x:20,y:85},{x:90,y:35},{x:10,y:35},{x:80,y:85},{x:50,y:10}], // 4: Nekonečná hvězda
-        [{x:50,y:10},{x:65,y:35},{x:90,y:50},{x:65,y:65},{x:50,y:90},{x:35,y:65},{x:10,y:50},{x:35,y:35},{x:50,y:10}], // 5: Čtyřcíipá diamantová hvězda
-        [{x:20,y:20},{x:80,y:20},{x:50,y:50},{x:80,y:80},{x:20,y:80},{x:50,y:50},{x:20,y:20}], // 6: Dva trojúhelníky
-        [{x:50,y:10},{x:90,y:50},{x:50,y:90},{x:10,y:50},{x:50,y:10},{x:50,y:90},{x:10,y:50},{x:90,y:50},{x:50,y:10}], // 7: Kosočtverec s křížem
-        [{x:20,y:10},{x:80,y:10},{x:80,y:90},{x:20,y:90},{x:50,y:50},{x:20,y:10},{x:80,y:90}], // 8: Přesýpací hodiny
-        [{x:50,y:15},{x:85,y:85},{x:15,y:85},{x:50,y:15},{x:50,y:50},{x:85,y:85}], // 9: Trojúhelníkový uzel
-        [{x:10,y:10},{x:90,y:10},{x:90,y:50},{x:10,y:50},{x:10,y:90},{x:90,y:90},{x:90,y:10}], // 10: Dvojitá smyčka S
-        [{x:50,y:10},{x:75,y:30},{x:50,y:50},{x:75,y:70},{x:50,y:90},{x:25,y:70},{x:50,y:50},{x:25,y:30},{x:50,y:10}], // 11: Rybí kosti
-        [{x:15,y:30},{x:85,y:30},{x:50,y:90},{x:15,y:30},{x:85,y:70},{x:15,y:70},{x:50,y:10},{x:85,y:70}], // 12: Dvojitý štít
-        [{x:50,y:10},{x:90,y:30},{x:70,y:90},{x:30,y:90},{x:10,y:30},{x:50,y:10}], // 13: Pentagon
-        [{x:30,y:10},{x:70,y:10},{x:90,y:50},{x:70,y:90},{x:30,y:90},{x:10,y:50},{x:30,y:10}], // 14: Šestiúhelník stojatý
-        [{x:50,y:10},{x:90,y:50},{x:50,y:90},{x:10,y:50},{x:50,y:10},{x:30,y:30},{x:70,y:70}], // 15: Kosočtverec s úhlopříčkou
-        [{x:10,y:10},{x:50,y:30},{x:90,y:10},{x:70,y:50},{x:90,y:90},{x:50,y:70},{x:10,y:90},{x:30,y:50},{x:10,y:10}], // 16: Vrtule
-        [{x:50,y:10},{x:80,y:40},{x:50,y:70},{x:20,y:40},{x:50,y:10},{x:50,y:90},{x:80,y:60}], // 17: Kotva
-        [{x:20,y:20},{x:80,y:20},{x:20,y:80},{x:80,y:80},{x:80,y:20},{x:20,y:80}], // 18: Zborcený čtverec
-        [{x:50,y:10},{x:90,y:90},{x:50,y:70},{x:10,y:90},{x:50,y:10}], // 19: Šíp
-        [{x:10,y:50},{x:50,y:10},{x:90,y:50},{x:50,y:90},{x:10,y:50},{x:90,y:90}], // 20: Kosočtverec s protínáním
-        [{x:20,y:10},{x:80,y:10},{x:50,y:40},{x:80,y:70},{x:50,y:90},{x:20,y:70},{x:50,y:40}], // 21: Motýlek
-        [{x:30,y:10},{x:70,y:10},{x:50,y:50},{x:90,y:50},{x:90,y:90},{x:10,y:90},{x:10,y:50},{x:50,y:50},{x:30,y:10}], // 22: Chrám
-        [{x:50,y:10},{x:90,y:40},{x:50,y:50},{x:90,y:60},{x:50,y:90},{x:10,y:60},{x:50,y:50},{x:10,y:40},{x:50,y:10}], // 23: Dvojitý diamant
-        [{x:10,y:20},{x:90,y:20},{x:50,y:80},{x:10,y:20},{x:90,y:80},{x:10,y:80}], // 24: Trojúhelník s podstavou
-        [{x:50,y:10},{x:80,y:30},{x:80,y:70},{x:50,y:90},{x:20,y:70},{x:20,y:30},{x:50,y:10},{x:50,y:90}], // 25: Hexagon s osou
-        [{x:20,y:30},{x:50,y:10},{x:80,y:30},{x:80,y:90},{x:20,y:90},{x:20,y:30},{x:80,y:30}], // 26: Dům s půdou
-        [{x:50,y:10},{x:90,y:30},{x:90,y:70},{x:50,y:50},{x:10,y:70},{x:10,y:30},{x:50,y:10}], // 27: Krystal
-        [{x:10,y:10},{x:90,y:10},{x:50,y:50},{x:90,y:90},{x:10,y:90},{x:10,y:10}], // 28: Mašle se stranou
-        [{x:50,y:10},{x:70,y:40},{x:90,y:40},{x:75,y:60},{x:85,y:90},{x:50,y:70},{x:15,y:90},{x:25,y:60},{x:10,y:40},{x:30,y:40},{x:50,y:10}]  // 29: Klasická 5-cípe hvězda
-    ];
-
-    const EPOCH_START = new Date("2024-01-01T00:00:00Z").getTime();
-    const CYCLE_DAYS = 10;
-    const CYCLE_MS = CYCLE_DAYS * 24 * 60 * 60 * 1000;
-
-    function getCurrentCycleInfo() {
-        const now = Date.now();
-        const elapsed = Math.max(0, now - EPOCH_START);
-        const cycleIndex = Math.floor(elapsed / CYCLE_MS);
-        const cycleStart = EPOCH_START + (cycleIndex * CYCLE_MS);
-        const cycleEnd = cycleStart + CYCLE_MS;
-        const msRemaining = cycleEnd - now;
-        const daysRemaining = Math.ceil(msRemaining / (1000 * 60 * 60 * 24));
-        
-        const shapeIndex = cycleIndex % SHAPES.length;
-        const nextShapeIndex = (cycleIndex + 1) % SHAPES.length;
-
-        return {
-            cycleIndex,
-            shapeIndex,
-            nextShapeIndex,
-            daysRemaining
-        };
-    }
-
-    let cycleInfo = getCurrentCycleInfo();
-    let targetShape = SHAPES[cycleInfo.shapeIndex];
-
     const firebaseConfig = {
         apiKey: "AIzaSyCnGuV53ZyxO1qU7G6zsVFqWuKPSndn_bQ",
         authDomain: "neon-desk.firebaseapp.com",
@@ -278,37 +215,77 @@
         cz: {
             tutH1: "CO MÁŠ DĚLAT?", tutT1: "Obkresli vzor (vpravo nahoře) jedním souvislým tahem.",
             tutH2: "JAK ZÍSKAT TAHY NAVÍC?", tutT2: "Klikni na 'Pozvat kámoše'. Tah se přičte až kamarád odehraje..",
-            start: "START HRY", invite: "POZVAT KÁMOŠE (+1 TAH)", top10: "TOP 10 ŽEBŘÍČEK",
+            start: "START HRY", invite: "POZVAT KÁMOŠE (+1 TAH)", top10: "TOP 10 ŽEBŘÍČEK (10 DENNÍ CYKLUS)",
             labelMoves: "Tahy", labelBest: "Best", labelStreak: "Řada", labelGlobal: "Svět", again: "Znovu", share: "Sdílet",
-            labelTimer: "Za", labelNext: "Příští",
             nickPlaceholder: "Tvá přezdívka...", infoTitle: "Instrukce", 
-            infoBody: "<b>CO DĚLAT?</b><br>Obkresli vzor jedním tahem.<br><br><b>REKORDY:</b><br>Kliknutím na řádek v žebříčku zobrazíš fotku pokusu.<br><br><b>BONUSY:</b><br>Sdílej svůj link. Tah se přičte až kamarád odehraje..",
+            infoBody: "<b>CO DĚLAT?</b><br>Obkresli vzor jedním tahem.<br><br><b>CYKLUS HRY:</b><br>Každých 10 dní se mění vzor a nuluje se žebříček.<br><br><b>BONUSY:</b><br>Sdílej svůj link. Tah se přičte až kamarád odehraje..",
             alertNoMoves: "Dnes už jsi vyčerpal tahy. Přijď po půlnoci!", shareMsg: "Koukni na můj pokus!"
         },
         en: {
             tutH1: "HOW TO PLAY?", tutT1: "Trace the pattern (top right) in one continuous stroke.",
             tutH2: "GET EXTRA MOVES?", tutT2: "Click 'Invite Friends'. Move added after your friend plays..",
-            start: "START GAME", invite: "INVITE FRIENDS (+1 MOVE)", top10: "TOP 10 RANKING",
+            start: "START GAME", invite: "INVITE FRIENDS (+1 MOVE)", top10: "TOP 10 RANKING (10-DAY CYCLE)",
             labelMoves: "Moves", labelBest: "Best", labelStreak: "Streak", labelGlobal: "World", again: "Again", share: "Share",
-            labelTimer: "In", labelNext: "Next",
             nickPlaceholder: "Your nickname...", infoTitle: "Instructions",
-            infoBody: "<b>HOW TO PLAY?</b><br>Trace the pattern in one go.<br><br><b>RECORDS:</b><br>Click any row in the ranking to see the attempt photo.<br><br><b>BONUSES:</b><br>Share your link. Moves added after friends play..",
+            infoBody: "<b>HOW TO PLAY?</b><br>Trace the pattern in one go.<br><br><b>GAME CYCLE:</b><br>Pattern changes and leaderboard resets every 10 days.<br><br><b>BONUSES:</b><br>Share your link. Moves added after friends play..",
             alertNoMoves: "No moves left today. Come back after midnight!", shareMsg: "Check my attempt!"
         }
     };
+
+    // LOGIKA 10DENNÍHO CYKLU A GENERÁTORU TVARŮ
+    const CYCLE_DAYS = 10;
+    const currentCycleIndex = Math.floor(Date.now() / (1000 * 60 * 60 * 24 * CYCLE_DAYS));
+
+    // Původní vzor pro první cyklus
+    const baseTargetShape = [{x:50,y:10},{x:85,y:40},{x:50,y:55},{x:15,y:70},{x:50,y:95},{x:85,y:70},{x:50,y:55},{x:15,y:40},{x:50,y:10}];
+
+    function generateCycleShape(cycle) {
+        if (cycle % 5 === 0) return baseTargetShape; // Návrat k původnímu vzoru každý 5. cyklus (nebo v 1. cyklu)
+
+        let points = [];
+        let steps = 80;
+        let type = cycle % 4;
+
+        for (let i = 0; i <= steps; i++) {
+            let t = (i / steps) * Math.PI * 2;
+            let x = 0, y = 0;
+
+            if (type === 1) { // Lissajous figure (Knot-like)
+                x = Math.sin(2 * t);
+                y = Math.sin(3 * t);
+            } else if (type === 2) { // Rose Curve
+                let r = Math.cos(2 * t);
+                x = r * Math.cos(t);
+                y = r * Math.sin(t);
+            } else if (type === 3) { // Heart/Special Shape
+                x = 16 * Math.pow(Math.sin(t), 3) / 16;
+                y = -(13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t)) / 16;
+            } else { // Star Polygon
+                let r = (i % 2 === 0) ? 1 : 0.4;
+                x = r * Math.cos(t);
+                y = r * Math.sin(t);
+            }
+
+            // Normalizace do rozsahu (15 až 85)
+            points.push({
+                x: Math.round(50 + x * 35),
+                y: Math.round(50 + y * 35)
+            });
+        }
+        return points;
+    }
+
+    const targetShape = generateCycleShape(currentCycleIndex);
 
     const urlParams = new URLSearchParams(window.location.search);
     const referrer = urlParams.get('ref');
     let urlUid = urlParams.get('uid');
 
-    // LOGIKA IDENTIFIKACE A PROPOJENÍ
     let userId = urlUid || localStorage.getItem('neon_uid');
-    
     if (urlUid) {
         userId = urlUid;
         localStorage.setItem('neon_uid', userId);
     }
-
     if (!userId) {
         userId = 'u_' + Math.random().toString(36).substr(2, 9);
         localStorage.setItem('neon_uid', userId);
@@ -341,17 +318,31 @@
         document.getElementById('label-best').innerText = t.labelBest;
         document.getElementById('label-streak').innerText = t.labelStreak;
         document.getElementById('label-global').innerText = t.labelGlobal;
-        document.getElementById('label-timer').innerText = t.labelTimer;
-        document.getElementById('label-next').innerText = t.labelNext;
         document.getElementById('btn-again').innerText = t.again;
         document.getElementById('btn-share').innerText = t.share;
         document.getElementById('player-name-input').placeholder = t.nickPlaceholder;
         document.getElementById('menu-info-title').innerText = t.infoTitle;
         document.getElementById('menu-info-body').innerHTML = t.infoBody;
-        
-        document.getElementById('timer-display').innerText = cycleInfo.daysRemaining + "d";
     }
     setLang(currentLang);
+
+    // KONTROLA NULOVÁNÍ ŽEBŘÍČKU PŘI ZMĚNĚ 10DENNÍHO CYKLU
+    db.ref('system/currentCycle').once('value', snap => {
+        const savedCycle = snap.val();
+        if (savedCycle === null || savedCycle < currentCycleIndex) {
+            // Nastala změna cyklu -> vynulovat pouze skóre a fotky u všech uživatelů
+            db.ref('users').once('value', usersSnap => {
+                const users = usersSnap.val();
+                let updates = {};
+                for (let uid in users) {
+                    updates[`users/${uid}/bestScore`] = 0;
+                    updates[`users/${uid}/bestPhoto`] = null;
+                }
+                updates['system/currentCycle'] = currentCycleIndex;
+                db.ref().update(updates);
+            });
+        }
+    });
 
     db.ref(`users/${userId}`).once('value', snap => {
         const data = snap.val();
@@ -380,8 +371,7 @@
                         moves: initialMoves, 
                         streak: 0,
                         lastPlayDate: getTodayStr(),
-                        invitedBy: isValidRef ? referrer : null,
-                        lastCycleIndex: cycleInfo.cycleIndex
+                        invitedBy: isValidRef ? referrer : null
                     });
                 } else {
                     db.ref(`users/${userId}`).update({ name: userName });
@@ -391,33 +381,11 @@
         }
     }
 
-    function checkCycleReset(userData) {
-        cycleInfo = getCurrentCycleInfo();
-        targetShape = SHAPES[cycleInfo.shapeIndex];
-
-        if (userData && userData.lastCycleIndex !== undefined && userData.lastCycleIndex !== cycleInfo.cycleIndex) {
-            db.ref(`users/${userId}`).update({
-                bestScore: 0,
-                bestPhoto: null,
-                lastCycleIndex: cycleInfo.cycleIndex
-            });
-            bestScore = 0;
-        } else if (userData && userData.lastCycleIndex === undefined) {
-            db.ref(`users/${userId}`).update({ lastCycleIndex: cycleInfo.cycleIndex });
-        }
-        
-        document.getElementById('timer-display').innerText = cycleInfo.daysRemaining + "d";
-        drawNextPreview();
-    }
-
     function initGame() {
         document.getElementById('menu-user-name').innerText = userName || '...';
         
         db.ref(`users/${userId}`).on('value', snap => {
             const data = snap.val() || {};
-            
-            checkCycleReset(data);
-            
             streak = data.streak || 0;
             bestScore = data.bestScore || 0;
             moves = data.moves || 0;
@@ -441,18 +409,19 @@
         db.ref('users').orderByChild('bestScore').limitToLast(10).on('value', snap => {
             const users = snap.val();
             let list = [];
-            for (let id in users) list.push({ ...users[id], id: id });
+            for (let id in users) {
+                if (users[id].bestScore > 0) { // Zobrazit v žebříčku jen odehrané
+                    list.push({ ...users[id], id: id });
+                }
+            }
             list.sort((a,b) => (b.bestScore || 0) - (a.bestScore || 0));
             let html = '';
             list.forEach(u => {
                 const isMe = u.id === userId ? 'me' : '';
                 html += `<div class="friend-row ${isMe}" onclick="viewPhoto('${u.id}')"><span>${u.name || '...'}</span><b class="score-link">${u.bestScore || 0}%</b></div>`;
             });
-            document.getElementById('friends-list').innerHTML = html;
+            document.getElementById('friends-list').innerHTML = html || '<div style="color:#666; font-size:11px; padding:10px;">Zatím žádné rekordy v tomto cyklu.</div>';
         });
-
-        drawRef();
-        drawNextPreview();
     }
 
     function checkMidnightReset(lastPlayDate) {
@@ -476,7 +445,6 @@
         document.getElementById('moves-display').innerText = moves;
         document.getElementById('best-display').innerText = bestScore + "%";
         document.getElementById('streak-display').innerText = "🔥 " + streak;
-        document.getElementById('timer-display').innerText = cycleInfo.daysRemaining + "d";
         if (moves > 0) {
             document.getElementById('btn-again').style.opacity = "1";
         }
@@ -618,19 +586,6 @@
         r.shadowBlur = 0; r.strokeStyle = '#fff'; r.lineWidth = 4; r.stroke();
     }
 
-    function drawNextPreview() {
-        const nCanvas = document.getElementById('nextCanvas');
-        if(!nCanvas) return;
-        const n = nCanvas.getContext('2d');
-        const nextShape = SHAPES[cycleInfo.nextShapeIndex];
-        n.clearRect(0,0,50,50);
-        n.shadowBlur = 5; n.shadowColor = '#00ffff';
-        n.strokeStyle = '#00ffff'; n.lineWidth = 3; n.lineCap = 'round'; n.lineJoin = 'round';
-        n.beginPath();
-        nextShape.forEach((p, i) => { if(i === 0) n.moveTo(p.x*0.5, p.y*0.5); else n.lineTo(p.x*0.5, p.y*0.5); });
-        n.stroke();
-    }
-
     function viewPhoto(id) {
         db.ref(`users/${id}/bestPhoto`).once('value', snap => {
             const val = snap.val();
@@ -657,8 +612,8 @@
         }
     }
 
-    window.onload = () => { setTimeout(() => { drawRef(); drawNextPreview(); }, 500); };
-    window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; drawRef(); drawNextPreview(); });
+    window.onload = () => { setTimeout(drawRef, 500); };
+    window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; drawRef(); });
 </script>
 
 </body>
