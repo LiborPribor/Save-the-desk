@@ -552,21 +552,28 @@
   function evaluate() {
     isFinished = true;
 
+    // 1. Ochrana proti prázdnému/krátkému tahu
     if (!playerTrace || playerTrace.length < 5) {
-        processFinalScore(0, 0, 0, 0);
+        processFinalScore(0, 50, 0, 0);
         return;
     }
 
-    // 1. Ochrana proti mikrotahům
-    let minX = Math.min(...playerTrace.map(p => p.x));
-    let maxX = Math.max(...playerTrace.map(p => p.x));
-    let minY = Math.min(...playerTrace.map(p => p.y));
-    let maxY = Math.max(...playerTrace.map(p => p.y));
+    // Bezpečný výpočet min/max bez Math.min(...array), který způsobuje Call Stack Error
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (let i = 0; i < playerTrace.length; i++) {
+        let p = playerTrace[i];
+        if (p.x < minX) minX = p.x;
+        if (p.x > maxX) maxX = p.x;
+        if (p.y < minY) minY = p.y;
+        if (p.y > maxY) maxY = p.y;
+    }
+
     let w = maxX - minX;
     let h = maxY - minY;
 
-    if (w < 30 || h < 30) {
-        processFinalScore(0, 0, 0, 0);
+    // Ochrana proti mikrotahům (tečkám)
+    if (w < 20 || h < 20) {
+        processFinalScore(0, 50, (minX + maxX) / 2, (minY + maxY) / 2);
         return;
     }
 
@@ -581,16 +588,18 @@
     }
 
     let targetLength = 0;
-    for (let i = 0; i < targetShape.length - 1; i++) {
-        targetLength += Math.hypot(targetShape[i+1].x - targetShape[i].x, targetShape[i+1].y - targetShape[i].y);
+    if (Array.isArray(targetShape) && targetShape.length > 1) {
+        for (let i = 0; i < targetShape.length - 1; i++) {
+            targetLength += Math.hypot(targetShape[i+1].x - targetShape[i].x, targetShape[i+1].y - targetShape[i].y);
+        }
     }
 
-    // Normalizace délky vzoru na reálnou velikost nakresleného objektu
-    let scaleFactor = size / 80; // Podle drawGhost používáte rozsah 80 jednotek
+    let scaleFactor = size / 80;
     let expectedPlayerLength = targetLength * scaleFactor;
     let lengthRatio = playerLength / (expectedPlayerLength || 1);
 
-    if (lengthRatio > 3.0) { // Zvýšený limit pro čmáranice
+    // Pokud je to extrémní čmáranice (3x delší než vzor)
+    if (lengthRatio > 3.0) {
         processFinalScore(0, size, centerX, centerY);
         return;
     }
@@ -605,34 +614,32 @@
     const ctx1 = c1.getContext('2d');
     const ctx2 = c2.getContext('2d');
 
-    // Mírně silnější čára na mřížce 50x50 zabrání přísnému míjení o 1px
     ctx1.lineWidth = ctx2.lineWidth = 3;
     ctx1.strokeStyle = ctx2.strokeStyle = '#fff';
     ctx1.lineCap = ctx2.lineCap = 'round';
     ctx1.lineJoin = ctx2.lineJoin = 'round';
 
     // A) Vykreslení hráče
-    const normPlayer = playerTrace.map(p => ({
-        x: ((p.x - centerX) / size) * (GRID - 12) + GRID / 2,
-        y: ((p.y - centerY) / size) * (GRID - 12) + GRID / 2
-    }));
-
     ctx1.beginPath();
-    normPlayer.forEach((p, i) => {
-        if (i === 0) ctx1.moveTo(p.x, p.y);
-        else ctx1.lineTo(p.x, p.y);
+    playerTrace.forEach((p, i) => {
+        let px = ((p.x - centerX) / size) * (GRID - 12) + GRID / 2;
+        let py = ((p.y - centerY) / size) * (GRID - 12) + GRID / 2;
+        if (i === 0) ctx1.moveTo(px, py);
+        else ctx1.lineTo(px, py);
     });
     ctx1.stroke();
 
-    // B) Vykreslení vzoru (Sjednoceno s normováním podle drawGhost: střed v 50, rozsah 80)
-    ctx2.beginPath();
-    targetShape.forEach((p, i) => {
-        let px = ((p.x - 50) / 80) * (GRID - 12) + GRID / 2;
-        let py = ((p.y - 50) / 80) * (GRID - 12) + GRID / 2;
-        if (i === 0) ctx2.moveTo(px, py);
-        else ctx2.lineTo(px, py);
-    });
-    ctx2.stroke();
+    // B) Vykreslení vzoru
+    if (Array.isArray(targetShape)) {
+        ctx2.beginPath();
+        targetShape.forEach((p, i) => {
+            let px = ((p.x - 50) / 80) * (GRID - 12) + GRID / 2;
+            let py = ((p.y - 50) / 80) * (GRID - 12) + GRID / 2;
+            if (i === 0) ctx2.moveTo(px, py);
+            else ctx2.lineTo(px, py);
+        });
+        ctx2.stroke();
+    }
 
     // 4. VYHODNOCENÍ CHYB
     const img1 = ctx1.getImageData(0, 0, GRID, GRID).data;
@@ -643,8 +650,8 @@
     let extraPixels = 0;
 
     for (let i = 3; i < img1.length; i += 4) {
-        let p1 = img1[i] > 50; // Hráč
-        let p2 = img2[i] > 50; // Vzor
+        let p1 = img1[i] > 50; // Pixel hráče
+        let p2 = img2[i] > 50; // Pixel vzoru
 
         if (p2) targetPixels++;
         if (p1 && p2) hitPixels++;
@@ -657,7 +664,7 @@
     }
 
     let recall = hitPixels / targetPixels;
-    let extraPenalty = (extraPixels / targetPixels) * 0.3; // Mírnější penalizace
+    let extraPenalty = (extraPixels / targetPixels) * 0.3;
 
     let rawScore = recall - extraPenalty;
 
@@ -668,9 +675,11 @@
     let finalRatio = Math.max(0, rawScore);
     let score = Math.round(Math.pow(finalRatio, 1.1) * 100);
 
+    // Zabezpečení, aby skóre bylo vždy platné číslo
+    if (isNaN(score)) score = 0;
+
     processFinalScore(score, size, centerX, centerY);
 }
-
     function drawGhost(size, centerX, centerY) {
         ctx.setLineDash([8, 8]); ctx.strokeStyle = 'rgba(255, 0, 255, 0.4)'; ctx.lineWidth = 2;
         ctx.beginPath();
