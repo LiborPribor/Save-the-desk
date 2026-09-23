@@ -549,49 +549,91 @@
     canvas.addEventListener('mousemove', e => handleMove(e.clientX, e.clientY));
     canvas.addEventListener('mouseup', handleEnd);
 
-    function evaluate() {
-        isFinished = true;
-        let minX = Math.min(...playerTrace.map(p=>p.x)), maxX = Math.max(...playerTrace.map(p=>p.x));
-        let minY = Math.min(...playerTrace.map(p=>p.y)), maxY = Math.max(...playerTrace.map(p=>p.y));
-        let size = Math.max(maxX - minX, maxY - minY, 50);
-        let centerX = minX + (maxX - minX) / 2;
-        let centerY = minY + (maxY - minY) / 2;
-        const normPlayer = playerTrace.map(p => ({ x: ((p.x - centerX) / size) * 80 + 50, y: ((p.y - centerY) / size) * 80 + 50 }));
-        let totalErr = 0;
-        normPlayer.forEach(p => {
-            let minDist = Infinity;
-            for(let i=0; i<targetShape.length-1; i++) {
-                let d = distToSegment(p, targetShape[i], targetShape[i+1]);
-                if (d < minDist) minDist = d;
-            }
-            totalErr += minDist;
-        });
-        let score = Math.round(Math.max(0, 100 - ( (totalErr / normPlayer.length) * 9 )));
-        const photo = canvas.toDataURL("image/webp", 0.3);
-        
-        if (score >= bestScore) {
-            db.ref(`users/${userId}`).update({ bestScore: score, bestPhoto: photo });
-        }
-        
-        showScore(score);
-
-        db.ref(`users/${userId}`).once('value', snap => {
-            const me = snap.val() || {};
-            const inviter = me.invitedBy || (referrer && referrer !== userId ? referrer : null);
-            if (inviter) {
-                const today = getTodayStr();
-                const bonusPath = `users/${inviter}/dailyBonuses/${userId}`;
-                db.ref(bonusPath).once('value', bSnap => {
-                    if (bSnap.val() !== today) {
-                        db.ref(`users/${inviter}/moves`).transaction(m => (m || 0) + 1);
-                        db.ref(bonusPath).set(today);
-                    }
-                });
-            }
-        });
-        
-        drawGhost(size, centerX, centerY);
+   function evaluate() {
+    isFinished = true;
+    
+    let minX = Math.min(...playerTrace.map(p=>p.x)), maxX = Math.max(...playerTrace.map(p=>p.x));
+    let minY = Math.min(...playerTrace.map(p=>p.y)), maxY = Math.max(...playerTrace.map(p=>p.y));
+    
+    // Zamezení vyhodnocení, pokud je kresba moc malá (např. tečka)
+    if ((maxX - minX) < 30 && (maxY - minY) < 30) {
+        showScore(0);
+        return;
     }
+
+    let size = Math.max(maxX - minX, maxY - minY, 50);
+    let centerX = minX + (maxX - minX) / 2;
+    let centerY = minY + (maxY - minY) / 2;
+
+    const normPlayer = playerTrace.map(p => ({ 
+        x: ((p.x - centerX) / size) * 80 + 50, 
+        y: ((p.y - centerY) / size) * 80 + 50 
+    }));
+
+    // A) Odchylka hráče od vzoru (Jak přesně trefil čáry)
+    let totalErrPlayer = 0;
+    normPlayer.forEach(p => {
+        let minDist = Infinity;
+        for(let i = 0; i < targetShape.length - 1; i++) {
+            let d = distToSegment(p, targetShape[i], targetShape[i+1]);
+            if (d < minDist) minDist = d;
+        }
+        totalErrPlayer += minDist;
+    });
+    let avgErrPlayer = totalErrPlayer / normPlayer.length;
+
+    // B) Pokrytí vzoru (Zda nakreslil CELÝ tvar a neklesl jen na kousek)
+    let totalErrShape = 0;
+    // Vzorkujeme body podél cílového tvaru
+    let shapeSampleCount = 0;
+    for(let i = 0; i < targetShape.length - 1; i++) {
+        let p1 = targetShape[i];
+        let p2 = targetShape[i+1];
+        let steps = 10; // Počet kontrolních bodů na úsečku
+        for(let t = 0; t <= steps; t++) {
+            let sp = { x: p1.x + (p2.x - p1.x)*(t/steps), y: p1.y + (p2.y - p1.y)*(t/steps) };
+            let minDist = Infinity;
+            normPlayer.forEach(p => {
+                let d = Math.hypot(p.x - sp.x, p.y - sp.y);
+                if (d < minDist) minDist = d;
+            });
+            totalErrShape += minDist;
+            shapeSampleCount++;
+        }
+    }
+    let avgErrShape = totalErrShape / shapeSampleCount;
+
+    // Celková průměrná chyba kombinuje přesnost i kompletnost
+    let combinedErr = (avgErrPlayer * 0.5) + (avgErrShape * 0.5);
+
+    // Výpočet skóre (přepracovaná citlivost: * 6 místo * 9 pro příjemnější hratelnost)
+    let score = Math.round(Math.max(0, 100 - (combinedErr * 6)));
+    
+    if (score >= bestScore) {
+        const photo = canvas.toDataURL("image/webp", 0.3);
+        db.ref(`users/${userId}`).update({ bestScore: score, bestPhoto: photo });
+    }
+    
+    showScore(score);
+
+    // Prověření pozvánek / bonusů
+    db.ref(`users/${userId}`).once('value', snap => {
+        const me = snap.val() || {};
+        const inviter = me.invitedBy || (referrer && referrer !== userId ? referrer : null);
+        if (inviter) {
+            const today = getTodayStr();
+            const bonusPath = `users/${inviter}/dailyBonuses/${userId}`;
+            db.ref(bonusPath).once('value', bSnap => {
+                if (bSnap.val() !== today) {
+                    db.ref(`users/${inviter}/moves`).transaction(m => (m || 0) + 1);
+                    db.ref(bonusPath).set(today);
+                }
+            });
+        }
+    });
+    
+    drawGhost(size, centerX, centerY);
+}
 
     function drawGhost(size, centerX, centerY) {
         ctx.setLineDash([8, 8]); ctx.strokeStyle = 'rgba(255, 0, 255, 0.4)'; ctx.lineWidth = 2;
