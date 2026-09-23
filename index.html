@@ -528,80 +528,43 @@
         playerTrace.push({x: clientX, y: clientY});
     }
 function evaluate() {
-    isFinished = true;
+    let correctMoves = 0;
+    let totalChecks = 0;
+    let falseConnections = 0;
 
-    if (!playerTrace || playerTrace.length < 2) {
-        processFinalScore(0, 0, 0, 0);
-        return;
+    // Procházíme celou mřížku a porovnáváme stav hrana po hraně
+    for (let r = 0; r < gridRows; r++) {
+        for (let c = 0; c < gridCols; c++) {
+            const currentTile = grid[r][c];
+            const targetTile = targetGrid[r][c];
+
+            // Porovnáme stav spojení na všech 4 stranách (Top, Right, Bottom, Left)
+            for (let dir = 0; dir < 4; dir++) {
+                const isCurrentConnected = currentTile.connections[dir];
+                const isTargetConnected = targetTile.connections[dir];
+
+                if (isTargetConnected) {
+                    totalChecks++;
+                    if (isCurrentConnected) {
+                        correctMoves++;
+                    }
+                } else if (isCurrentConnected) {
+                    // Penalizace: Hráč vytvořil čáru tam, kde ve vzoru žádná nemá být
+                    falseConnections++;
+                }
+            }
+        }
     }
 
-    // --- VAŠE PŮVODNÍ URČENÍ ROZMĚRŮ ---
-    let minX = Math.min(...playerTrace.map(p => p.x));
-    let maxX = Math.max(...playerTrace.map(p => p.x));
-    let minY = Math.min(...playerTrace.map(p => p.y));
-    let maxY = Math.max(...playerTrace.map(p => p.y));
-    let w = maxX - minX;
-    let h = maxY - minY;
+    if (totalChecks === 0) return 100;
 
-    let size = Math.max(w, h, 50);
-    let centerX = minX + w / 2;
-    let centerY = minY + h / 2;
-
-    // --- 1. DOPLNĚNÁ KONTROLA DÉLKY (Zabiják čmáranic) ---
-    let playerLength = 0;
-    for (let i = 0; i < playerTrace.length - 1; i++) {
-        playerLength += Math.hypot(playerTrace[i+1].x - playerTrace[i].x, playerTrace[i+1].y - playerTrace[i].y);
-    }
-
-    let targetLength = 0;
-    for (let i = 0; i < targetShape.length - 1; i++) {
-        targetLength += Math.hypot(targetShape[i+1].x - targetShape[i].x, targetShape[i+1].y - targetShape[i].y);
-    }
-
-    // Přepočet délky vzhledem k velikosti nakresleného objektu
-    let expectedLength = targetLength * (size / 80); 
-    let lengthRatio = playerLength / (expectedLength || 1);
-
-    // Pokud je nakreslená čára 2.5x delší než vzor (úplná čmáranice), okamžitě 0 %
-    if (lengthRatio > 2.5) {
-        processFinalScore(0, size, centerX, centerY);
-        return;
-    }
-
-
-    // --- 2. VAŠE PŮVODNÍ LOGIKA VYHODNOCENÍ BODOŮ (Upravená o penalizaci) ---
-    // (Zde je vaše původní porovnávání vzdáleností bodů, které vám fungovalo)
-    let totalError = 0;
-    let sampledPoints = 0;
-
-    // Procházíme body vzoru a hledáme k nim nejbližší bod od hráče
-    targetShape.forEach(tp => {
-        let tx = ((tp.x - 50) / 80) * size + centerX;
-        let ty = ((tp.y - 50) / 80) * size + centerY;
-
-        let minDist = Infinity;
-        playerTrace.forEach(pp => {
-            let d = Math.hypot(pp.x - tx, pp.y - ty);
-            if (d < minDist) minDist = d;
-        });
-
-        totalError += minDist;
-        sampledPoints++;
-    });
-
-    let avgError = totalError / (sampledPoints || 1);
+    // Vypočteme přesnost a odečteme penalizaci za nesmyslné čáry navíc
+    const accuracy = (correctMoves / totalChecks) * 100;
+    const penalty = (falseConnections / totalChecks) * 20; // 20% dolů za každou chybnou hranu
     
-    // Základní procento z chyby vzdálenosti
-    let baseScore = Math.max(0, 100 - (avgError / size) * 200);
+    const finalScore = Math.max(0, Math.round(accuracy - penalty));
 
-    // PENALIZACE: Pokud je čára delší než má být (např. kruh okolo kosočtverce), strhneme %
-    if (lengthRatio > 1.2) {
-        baseScore -= (lengthRatio - 1.2) * 60;
-    }
-
-    let finalScore = Math.max(0, Math.round(baseScore));
-
-    processFinalScore(finalScore, size, centerX, centerY);
+    return finalScore;
 }
     function drawGhost(size, centerX, centerY) {
     function drawGhost(size, centerX, centerY) {
