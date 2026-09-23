@@ -431,7 +431,7 @@
     canvas.addEventListener('mousemove', e => handleMove(e.clientX, e.clientY));
     canvas.addEventListener('mouseup', handleEnd);
 
-  function evaluate() {
+ function evaluate() {
         isFinished = true;
 
         if (!playerTrace || playerTrace.length < 5) {
@@ -439,118 +439,114 @@
             return;
         }
 
-        // --- 1. DYNAMICKÉ MĚŘÍTKO & NORMALIZACE HRÁČE ---
-        let minX = Math.min(...playerTrace.map(p => p.x));
-        let maxX = Math.max(...playerTrace.map(p => p.x));
-        let minY = Math.min(...playerTrace.map(p => p.y));
-        let maxY = Math.max(...playerTrace.map(p => p.y));
+        // --- 1. VYTVOŘENÍ DVOCH NEVIDITELNÝCH MŘÍŽEK (OFFSCREEN CANVAS) ---
+        const GRID_SIZE = 64; // Mřížka 64x64 pro rychlé a přesné porovnání pixelů
+        
+        const canvasTarget = document.createElement('canvas');
+        canvasTarget.width = GRID_SIZE;
+        canvasTarget.height = GRID_SIZE;
+        const ctxT = canvasTarget.getContext('2d');
 
-        let pWidth = maxX - minX;
-        let pHeight = maxY - minY;
-        let pSize = Math.max(pWidth, pHeight, 50);
-        let pCenterX = minX + pWidth / 2;
-        let pCenterY = minY + pHeight / 2;
+        const canvasPlayer = document.createElement('canvas');
+        canvasPlayer.width = GRID_SIZE;
+        canvasPlayer.height = GRID_SIZE;
+        const ctxP = canvasPlayer.getContext('2d');
 
-        // Normalizace tahu hráče do mřížky 0..100
-        const normPlayer = playerTrace.map(p => ({
-            x: ((p.x - pCenterX) / pSize) * 80 + 50,
-            y: ((p.y - pCenterY) / pSize) * 80 + 50
-        }));
+        // --- 2. SPOČÍTÁNÍ HRANIC A MĚŘÍTKA ---
+        let pMinX = Math.min(...playerTrace.map(p => p.x)), pMaxX = Math.max(...playerTrace.map(p => p.x));
+        let pMinY = Math.min(...playerTrace.map(p => p.y)), pMaxY = Math.max(...playerTrace.map(p => p.y));
+        let pW = pMaxX - pMinX, pH = pMaxY - pMinY;
+        let pSize = Math.max(pW, pH, 1);
+        let pCx = pMinX + pW / 2, pCy = pMinY + pH / 2;
 
-        // --- 2. NORMALIZACE CÍLOVÉHO VZORU (targetShape) ---
-        let tMinX = Math.min(...targetShape.map(p => p.x));
-        let tMaxX = Math.max(...targetShape.map(p => p.x));
-        let tMinY = Math.min(...targetShape.map(p => p.y));
-        let tMaxY = Math.max(...targetShape.map(p => p.y));
+        let tMinX = Math.min(...targetShape.map(p => p.x)), tMaxX = Math.max(...targetShape.map(p => p.x));
+        let tMinY = Math.min(...targetShape.map(p => p.y)), tMaxY = Math.max(...targetShape.map(p => p.y));
+        let tW = tMaxX - tMinX, tH = tMaxY - tMinY;
+        let tSize = Math.max(tW, tH, 1);
+        let tCx = tMinX + tW / 2, tCy = tMinY + tH / 2;
 
-        let tWidth = tMaxX - tMinX;
-        let tHeight = tMaxY - tMinY;
-        let tSize = Math.max(tWidth, tHeight, 1);
-        let tCenterX = tMinX + tWidth / 2;
-        let tCenterY = tMinY + tHeight / 2;
-
-        const normTarget = targetShape.map(p => ({
-            x: ((p.x - tCenterX) / tSize) * 80 + 50,
-            y: ((p.y - tCenterY) / tSize) * 80 + 50
-        }));
-
-        // --- 3. POROVNÁNÍ POMĚRU STRAN (Proporce) ---
-        let playerAspect = pWidth / (pHeight || 1);
-        let targetAspect = tWidth / (tHeight || 1);
-        let aspectRatioDiff = Math.abs(Math.log(playerAspect / targetAspect));
-        let aspectPenalty = Math.max(0.2, 1 - aspectRatioDiff); 
-
-        // --- 4. KONTROLA POKRYTÍ VZORU (Kolik % vzoru hráč obkreslil) ---
-        let totalTargetSamples = 0;
-        let hitTargetSamples = 0;
-        const HIT_RADIUS = 12; 
-
-        for (let i = 0; i < normTarget.length - 1; i++) {
-            let p1 = normTarget[i];
-            let p2 = normTarget[i + 1];
-            let segDist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
-            let steps = Math.max(2, Math.floor(segDist / 3));
-
-            for (let s = 0; s <= steps; s++) {
-                totalTargetSamples++;
-                let targetPt = {
-                    x: p1.x + (p2.x - p1.x) * (s / steps),
-                    y: p1.y + (p2.y - p1.y) * (s / steps)
-                };
-
-                let isHit = normPlayer.some(p => Math.hypot(p.x - targetPt.x, p.y - targetPt.y) <= HIT_RADIUS);
-                if (isHit) hitTargetSamples++;
-            }
-        }
-        let targetCoverage = hitTargetSamples / totalTargetSamples; // 0.0 až 1.0
-
-        // --- 5. PRŮMĚRNÁ CHYBA TAHU (Sráží čmárání a ulétávání) ---
-        let totalDistanceError = 0;
-        normPlayer.forEach(p => {
-            let minDist = Infinity;
-            for (let i = 0; i < normTarget.length - 1; i++) {
-                let d = distToSegment(p, normTarget[i], normTarget[i + 1]);
-                if (d < minDist) minDist = d;
-            }
-            totalDistanceError += minDist;
+        // --- 3. VYKRESLENÍ CÍLOVÉHO VZORU NA MŘÍŽKU ---
+        ctxT.lineWidth = 4;
+        ctxT.strokeStyle = 'white';
+        ctxT.beginPath();
+        targetShape.forEach((p, i) => {
+            let nx = ((p.x - tCx) / tSize) * (GRID_SIZE - 16) + GRID_SIZE / 2;
+            let ny = ((p.y - tCy) / tSize) * (GRID_SIZE - 16) + GRID_SIZE / 2;
+            if (i === 0) ctxT.moveTo(nx, ny);
+            else ctxT.lineTo(nx, ny);
         });
+        ctxT.stroke();
 
-        let avgError = totalDistanceError / normPlayer.length;
-        // Pokud je průměrná odchylka bodu od čáry větší než 15 jednotek, přesnost padá k nule
-        let accuracyScore = Math.max(0, 100 - (avgError * 6.5)); 
+        // --- 4. VYKRESLENÍ TAHU HRÁČE NA MŘÍŽKU ---
+        ctxP.lineWidth = 4;
+        ctxP.strokeStyle = 'white';
+        ctxP.beginPath();
+        playerTrace.forEach((p, i) => {
+            let nx = ((p.x - pCx) / pSize) * (GRID_SIZE - 16) + GRID_SIZE / 2;
+            let ny = ((p.y - pCy) / pSize) * (GRID_SIZE - 16) + GRID_SIZE / 2;
+            if (i === 0) ctxP.moveTo(nx, ny);
+            else ctxP.lineTo(nx, ny);
+        });
+        ctxP.stroke();
 
-        // --- 6. PENALIZACE ZA DÉLKU TAHU (Čmáranice je moc dlouhá) ---
-        let playerLength = 0;
-        for (let i = 0; i < normPlayer.length - 1; i++) {
-            playerLength += Math.hypot(normPlayer[i+1].x - normPlayer[i].x, normPlayer[i+1].y - normPlayer[i].y);
+        // --- 5. POROVNÁNÍ PIXEL PO PIXELU (IoU - Intersection over Union) ---
+        const imgT = ctxT.getImageData(0, 0, GRID_SIZE, GRID_SIZE).data;
+        const imgP = ctxP.getImageData(0, 0, GRID_SIZE, GRID_SIZE).data;
+
+        let intersection = 0; // Pixely, kde se trefil
+        let targetPixels = 0; // Celkový počet pixelů vzoru
+        let playerPixels = 0; // Celkový počet pixelů hráče
+
+        for (let i = 3; i < imgT.length; i += 4) {
+            let tOn = imgT[i] > 50;
+            let pOn = imgP[i] > 50;
+
+            if (tOn) targetPixels++;
+            if (pOn) playerPixels++;
+            if (tOn && pOn) intersection++;
         }
 
-        let targetLength = 0;
-        for (let i = 0; i < normTarget.length - 1; i++) {
-            targetLength += Math.hypot(normTarget[i+1].x - normTarget[i].x, normTarget[i+1].y - normTarget[i].y);
+        if (targetPixels === 0 || playerPixels === 0) {
+            showScore(0);
+            return;
         }
 
-        // Pokud je čára hráče o hodně delší než čára vzoru (přečmáráno), penalizujeme
-        let lengthRatio = playerLength / (targetLength || 1);
-        let excessPenalty = 1.0;
-        if (lengthRatio > 1.4) {
-            excessPenalty = Math.max(0.2, 1.4 / lengthRatio); // Rychle sráží přečmárané tahy
+        // Pokrytí vzoru (Recall) a Přesnost hráčových čar (Precision)
+        let coverage = intersection / targetPixels;  // Kolik % vzoru obkreslil
+        let precision = intersection / playerPixels; // Kolik % jeho čmárání bylo správně
+
+        // --- 6. KONTROLA DÉLKY A PROPORCÍ ---
+        let playerLen = 0;
+        for (let i = 0; i < playerTrace.length - 1; i++) {
+            playerLen += Math.hypot(playerTrace[i+1].x - playerTrace[i].x, playerTrace[i+1].y - playerTrace[i].y);
         }
 
-        // --- 7. FINÁLNÍ SKÓRE ---
-        // Základní skóre stojí na pokrytí vzoru a přesnosti tahu
-        let baseScore = (targetCoverage * 70) + (accuracyScore * 0.3);
+        let targetLen = 0;
+        for (let i = 0; i < targetShape.length - 1; i++) {
+            targetLen += Math.hypot(targetShape[i+1].x - targetShape[i].x, targetShape[i+1].y - targetShape[i].y);
+        }
 
-        // Vynásobení penalizacemi (proporce + přečmáranost)
-        let finalScore = baseScore * aspectPenalty * excessPenalty;
+        // Poměr stran (Aspect Ratio)
+        let pAspect = pW / (pH || 1);
+        let tAspect = tW / (tH || 1);
+        let aspectPenalty = Math.max(0, 1 - Math.abs(Math.log(pAspect / tAspect)));
 
-        // Pokud hráč nepokryl ani 50 % vzoru, skóre ještě více srazíme
-        if (targetCoverage < 0.5) {
-            finalScore *= targetCoverage;
+        // --- 7. VÝPOČET FINÁLNÍHO SKÓRE ---
+        // F1-Score kombinuje přesnost i pokrytí do jednoho přísného čísla
+        let f1Score = (2 * coverage * precision) / (coverage + precision || 1);
+
+        // Zapojení všech penalizací
+        let finalScore = f1Score * aspectPenalty * 100;
+
+        // Pokud je čára hráče výrazně delší než vzor (čmáranice), drasticky srazíme skóre
+        let lenRatio = playerLen / ((targetLen * (pSize / tSize)) || 1);
+        if (lenRatio > 1.25) {
+            finalScore *= Math.max(0, 1 - (lenRatio - 1.25));
         }
 
         let score = Math.round(Math.max(0, Math.min(100, finalScore)));
 
+        // Uložení a odeslání
         const photo = canvas.toDataURL("image/webp", 0.3);
 
         if (score >= bestScore) {
@@ -574,7 +570,7 @@
             }
         });
 
-        drawGhost(pSize, pCenterX, pCenterY);
+        drawGhost(pSize, pCx, pCy);
     }
     function drawGhost(size, centerX, centerY) {
         ctx.setLineDash([8, 8]); ctx.strokeStyle = 'rgba(255, 0, 255, 0.4)'; ctx.lineWidth = 2;
