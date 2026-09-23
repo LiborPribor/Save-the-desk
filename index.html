@@ -549,66 +549,87 @@
     canvas.addEventListener('mousemove', e => handleMove(e.clientX, e.clientY));
     canvas.addEventListener('mouseup', handleEnd);
 
-   function evaluate() {
+  function evaluate() {
     isFinished = true;
     
-    let minX = Math.min(...playerTrace.map(p=>p.x)), maxX = Math.max(...playerTrace.map(p=>p.x));
-    let minY = Math.min(...playerTrace.map(p=>p.y)), maxY = Math.max(...playerTrace.map(p=>p.y));
-    
-    // Zamezení vyhodnocení, pokud je kresba moc malá (např. tečka)
-    if ((maxX - minX) < 30 && (maxY - minY) < 30) {
-        showScore(0);
+    // 1. Základní kontrola rozměrů (ochrana proti tečkám a mikrotahům)
+    let minX = Math.min(...playerTrace.map(p => p.x)), maxX = Math.max(...playerTrace.map(p => p.x));
+    let minY = Math.min(...playerTrace.map(p => p.y)), maxY = Math.max(...playerTrace.map(p => p.y));
+    let w = maxX - minX, h = maxY - minY;
+
+    if (w < 30 || h < 30) {
+        processFinalScore(0, 0, 0);
         return;
     }
 
-    let size = Math.max(maxX - minX, maxY - minY, 50);
-    let centerX = minX + (maxX - minX) / 2;
-    let centerY = minY + (maxY - minY) / 2;
+    let size = Math.max(w, h, 50);
+    let centerX = minX + w / 2;
+    let centerY = minY + h / 2;
 
+    // 2. Vytvoření dvou skrytých pomocných pláten (32x32 px) pro porovnání pixelů
+    const GRID_SIZE = 32;
+    const c1 = document.createElement('canvas');
+    const c2 = document.createElement('canvas');
+    c1.width = c2.width = GRID_SIZE;
+    c1.height = c2.height = GRID_SIZE;
+    
+    const ctx1 = c1.getContext('2d');
+    const ctx2 = c2.getContext('2d');
+
+    // Nastavení parametrů čáry pro mřížku
+    ctx1.lineWidth = ctx2.lineWidth = 3;
+    ctx1.strokeStyle = ctx2.strokeStyle = '#fff';
+    ctx1.lineCap = ctx2.lineCap = 'round';
+    ctx1.lineJoin = ctx2.lineJoin = 'round';
+
+    // A) Vykreslení hráčova tahu do mřížky 1
     const normPlayer = playerTrace.map(p => ({ 
-        x: ((p.x - centerX) / size) * 80 + 50, 
-        y: ((p.y - centerY) / size) * 80 + 50 
+        x: ((p.x - centerX) / size) * (GRID_SIZE - 8) + GRID_SIZE / 2, 
+        y: ((p.y - centerY) / size) * (GRID_SIZE - 8) + GRID_SIZE / 2 
     }));
 
-    // A) Odchylka hráče od vzoru (Jak přesně trefil čáry)
-    let totalErrPlayer = 0;
-    normPlayer.forEach(p => {
-        let minDist = Infinity;
-        for(let i = 0; i < targetShape.length - 1; i++) {
-            let d = distToSegment(p, targetShape[i], targetShape[i+1]);
-            if (d < minDist) minDist = d;
-        }
-        totalErrPlayer += minDist;
+    ctx1.beginPath();
+    normPlayer.forEach((p, i) => {
+        if (i === 0) ctx1.moveTo(p.x, p.y);
+        else ctx1.lineTo(p.x, p.y);
     });
-    let avgErrPlayer = totalErrPlayer / normPlayer.length;
+    ctx1.stroke();
 
-    // B) Pokrytí vzoru (Zda nakreslil CELÝ tvar a neklesl jen na kousek)
-    let totalErrShape = 0;
-    // Vzorkujeme body podél cílového tvaru
-    let shapeSampleCount = 0;
-    for(let i = 0; i < targetShape.length - 1; i++) {
-        let p1 = targetShape[i];
-        let p2 = targetShape[i+1];
-        let steps = 10; // Počet kontrolních bodů na úsečku
-        for(let t = 0; t <= steps; t++) {
-            let sp = { x: p1.x + (p2.x - p1.x)*(t/steps), y: p1.y + (p2.y - p1.y)*(t/steps) };
-            let minDist = Infinity;
-            normPlayer.forEach(p => {
-                let d = Math.hypot(p.x - sp.x, p.y - sp.y);
-                if (d < minDist) minDist = d;
-            });
-            totalErrShape += minDist;
-            shapeSampleCount++;
-        }
+    // B) Vykreslení vzoru do mřížky 2
+    ctx2.beginPath();
+    targetShape.forEach((p, i) => {
+        let px = (p.x / 100) * (GRID_SIZE - 8) + 4;
+        let py = (p.y / 100) * (GRID_SIZE - 8) + 4;
+        if (i === 0) ctx2.moveTo(px, py);
+        else ctx2.lineTo(px, py);
+    });
+    ctx2.stroke();
+
+    // 3. Porovnání pixelů metodou IoU (Intersection over Union)
+    const img1 = ctx1.getImageData(0, 0, GRID_SIZE, GRID_SIZE).data;
+    const img2 = ctx2.getImageData(0, 0, GRID_SIZE, GRID_SIZE).data;
+
+    let intersection = 0;
+    let union = 0;
+
+    for (let i = 3; i < img1.length; i += 4) {
+        let p1 = img1[i] > 50; // Pixel hráče
+        let p2 = img2[i] > 50; // Pixel vzoru
+
+        if (p1 && p2) intersection++;
+        if (p1 || p2) union++;
     }
-    let avgErrShape = totalErrShape / shapeSampleCount;
 
-    // Celková průměrná chyba kombinuje přesnost i kompletnost
-    let combinedErr = (avgErrPlayer * 0.5) + (avgErrShape * 0.5);
-
-    // Výpočet skóre (přepracovaná citlivost: * 6 místo * 9 pro příjemnější hratelnost)
-    let score = Math.round(Math.max(0, 100 - (combinedErr * 6)));
+    // Výpočet přesného překryvu
+    let matchRatio = union > 0 ? (intersection / union) : 0;
     
+    // Přepočet na % (mocnina 0.8 dává fajn dynamiku: přesný tvar má 80-95%, nesmysl spadne pod 20%)
+    let score = Math.round(Math.pow(matchRatio, 0.8) * 100);
+
+    processFinalScore(score, size, centerX, centerY);
+}
+
+function processFinalScore(score, size, centerX, centerY) {
     if (score >= bestScore) {
         const photo = canvas.toDataURL("image/webp", 0.3);
         db.ref(`users/${userId}`).update({ bestScore: score, bestPhoto: photo });
@@ -616,7 +637,7 @@
     
     showScore(score);
 
-    // Prověření pozvánek / bonusů
+    // Prověření pozvánek / denního bonusu
     db.ref(`users/${userId}`).once('value', snap => {
         const me = snap.val() || {};
         const inviter = me.invitedBy || (referrer && referrer !== userId ? referrer : null);
@@ -631,8 +652,10 @@
             });
         }
     });
-    
-    drawGhost(size, centerX, centerY);
+
+    if (size) {
+        drawGhost(size, centerX, centerY);
+    }
 }
 
     function drawGhost(size, centerX, centerY) {
