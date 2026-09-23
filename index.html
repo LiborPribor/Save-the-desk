@@ -431,7 +431,7 @@
     canvas.addEventListener('mousemove', e => handleMove(e.clientX, e.clientY));
     canvas.addEventListener('mouseup', handleEnd);
 
-   function evaluate() {
+  function evaluate() {
         isFinished = true;
 
         if (!playerTrace || playerTrace.length < 5) {
@@ -439,35 +439,59 @@
             return;
         }
 
-        // 1. DYNAMICKÉ MĚŘÍTKO (Zůstává plně zachováno)
+        // --- 1. DYNAMICKÉ MĚŘÍTKO & NORMALIZACE HRÁČE ---
         let minX = Math.min(...playerTrace.map(p => p.x));
         let maxX = Math.max(...playerTrace.map(p => p.x));
         let minY = Math.min(...playerTrace.map(p => p.y));
         let maxY = Math.max(...playerTrace.map(p => p.y));
 
-        let width = maxX - minX;
-        let height = maxY - minY;
-        let size = Math.max(width, height, 50);
-        let centerX = minX + width / 2;
-        let centerY = minY + height / 2;
+        let pWidth = maxX - minX;
+        let pHeight = maxY - minY;
+        let pSize = Math.max(pWidth, pHeight, 50);
+        let pCenterX = minX + pWidth / 2;
+        let pCenterY = minY + pHeight / 2;
 
-        // Normalizace tahu hráče na relativní mřížku (0..100) podle JEHO velikosti
+        // Normalizace hráče na mřížku 0..100
         const normPlayer = playerTrace.map(p => ({
-            x: ((p.x - centerX) / size) * 80 + 50,
-            y: ((p.y - centerY) / size) * 80 + 50
+            x: ((p.x - pCenterX) / pSize) * 80 + 50,
+            y: ((p.y - pCenterY) / pSize) * 80 + 50
         }));
 
-        // --- TEST 1: POKRYTÍ VZORU (Coverage) ---
-        // Zjišťujeme, kolik % ze VZORU hráč obkreslil
+        // --- 2. NORMALIZACE CÍLOVÉHO VZORU (targetShape) ---
+        // Vzor normalizujeme stejně, abychom porovnávali identické proporce
+        let tMinX = Math.min(...targetShape.map(p => p.x));
+        let tMaxX = Math.max(...targetShape.map(p => p.x));
+        let tMinY = Math.min(...targetShape.map(p => p.y));
+        let tMaxY = Math.max(...targetShape.map(p => p.y));
+
+        let tWidth = tMaxX - tMinX;
+        let tHeight = tMaxY - tMinY;
+        let tSize = Math.max(tWidth, tHeight, 1);
+        let tCenterX = tMinX + tWidth / 2;
+        let tCenterY = tMinY + tHeight / 2;
+
+        const normTarget = targetShape.map(p => ({
+            x: ((p.x - tCenterX) / tSize) * 80 + 50,
+            y: ((p.y - tCenterY) / tSize) * 80 + 50
+        }));
+
+        // --- 3. POROVNÁNÍ POMĚRU STRAN (Proporce) ---
+        let playerAspect = pWidth / (pHeight || 1);
+        let targetAspect = tWidth / (tHeight || 1);
+        // Pokud má tvar úplně jiné proporce (např. přímka vs čtverec), vypočte se penalizace
+        let aspectRatioDiff = Math.abs(Math.log(playerAspect / targetAspect));
+        let aspectPenalty = Math.max(0, 1 - aspectRatioDiff); // 1.0 = perfektní shoda proporcí
+
+        // --- 4. SMĚR A: KOLIK % VZORU HRÁČ POKRYL (Target Coverage) ---
         let totalTargetSamples = 0;
         let hitTargetSamples = 0;
-        const HIT_RADIUS = 12; // Vylepšená tolerance pro lidský prst
+        const TOLERANCE = 12; // Tolerance dotyku v relativních bodech
 
-        for (let i = 0; i < targetShape.length - 1; i++) {
-            let p1 = targetShape[i];
-            let p2 = targetShape[i + 1];
+        for (let i = 0; i < normTarget.length - 1; i++) {
+            let p1 = normTarget[i];
+            let p2 = normTarget[i + 1];
             let segDist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
-            let steps = Math.max(3, Math.floor(segDist / 4));
+            let steps = Math.max(2, Math.floor(segDist / 4));
 
             for (let s = 0; s <= steps; s++) {
                 totalTargetSamples++;
@@ -476,42 +500,33 @@
                     y: p1.y + (p2.y - p1.y) * (s / steps)
                 };
 
-                let isHit = normPlayer.some(p => Math.hypot(p.x - targetPt.x, p.y - targetPt.y) <= HIT_RADIUS);
+                let isHit = normPlayer.some(p => Math.hypot(p.x - targetPt.x, p.y - targetPt.y) <= TOLERANCE);
                 if (isHit) hitTargetSamples++;
             }
         }
+        let targetCoverage = hitTargetSamples / totalTargetSamples; // 0.0 až 1.0
 
-        let coverageRatio = hitTargetSamples / totalTargetSamples; // 0.0 až 1.0
+        // --- 5. SMĚR B: KOLIK % HRÁČOVA TAHU LEŽÍ NA VZORU (Precision) ---
+        // Tento test odhalí, když hráč nakreslí ovál přes osmičku - body oválu mimo kříž se zpenalizují.
+        let validPlayerPoints = 0;
 
-        // --- TEST 2: DETEKCE CHYBĚJÍCÍHO STŘEDU (Křížení) ---
-        // V relativní mřížce 0..100 leží střed osmičky přesně na [50, 55].
-        // Pokud je nakreslen pouze vnější obvod (ovál), střed zůstane prázdný.
-        const relCenter = { x: 50, y: 55 };
-        let passedThroughCenter = normPlayer.some(p => Math.hypot(p.x - relCenter.x, p.y - relCenter.y) <= 12);
-
-        // --- TEST 3: PŘESNOST TAHU (Průměrná odchylka) ---
-        let totalErr = 0;
         normPlayer.forEach(p => {
             let minDist = Infinity;
-            for (let i = 0; i < targetShape.length - 1; i++) {
-                let d = distToSegment(p, targetShape[i], targetShape[i + 1]);
+            for (let i = 0; i < normTarget.length - 1; i++) {
+                let d = distToSegment(p, normTarget[i], normTarget[i + 1]);
                 if (d < minDist) minDist = d;
             }
-            totalErr += minDist;
+            if (minDist <= TOLERANCE) {
+                validPlayerPoints++;
+            }
         });
-        let avgError = totalErr / normPlayer.length;
-        let accuracyScore = Math.max(0, 100 - (avgError * 7));
+        let playerPrecision = validPlayerPoints / normPlayer.length; // 0.0 až 1.0
 
-        // --- FINÁLNÍ SKÓRE ---
-        // Hlavní váhu má pokrytí vzoru (70 %) a přesnost (30 %)
-        let rawScore = (coverageRatio * 100 * 0.7) + (accuracyScore * 0.3);
+        // --- 6. FINÁLNÍ SKÓRE ---
+        // Skóre násobíme pokrytím vzoru, přesností tahu a shodou proporcí
+        let combinedScore = targetCoverage * playerPrecision * aspectPenalty * 100;
 
-        // Penalizace: Pokud chybí středový průjezd, skóre se srazí na třetinu
-        if (!passedThroughCenter) {
-            rawScore *= 0.35;
-        }
-
-        let score = Math.round(Math.max(0, Math.min(100, rawScore)));
+        let score = Math.round(Math.max(0, Math.min(100, combinedScore)));
 
         const photo = canvas.toDataURL("image/webp", 0.3);
 
@@ -536,9 +551,8 @@
             }
         });
 
-        drawGhost(size, centerX, centerY);
+        drawGhost(pSize, pCenterX, pCenterY);
     }
-
     function drawGhost(size, centerX, centerY) {
         ctx.setLineDash([8, 8]); ctx.strokeStyle = 'rgba(255, 0, 255, 0.4)'; ctx.lineWidth = 2;
         ctx.beginPath();
