@@ -604,6 +604,7 @@ function evaluate() {
     processFinalScore(finalScore, size, centerX, centerY);
 }
     function drawGhost(size, centerX, centerY) {
+    function drawGhost(size, centerX, centerY) {
         ctx.setLineDash([8, 8]); ctx.strokeStyle = 'rgba(255, 0, 255, 0.4)'; ctx.lineWidth = 2;
         ctx.beginPath();
         targetShape.forEach((p, i) => {
