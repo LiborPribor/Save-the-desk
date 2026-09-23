@@ -527,139 +527,81 @@
         ctx.beginPath(); ctx.moveTo(last.x, last.y); ctx.lineTo(clientX, clientY); ctx.stroke();
         playerTrace.push({x: clientX, y: clientY});
     }
-
-   function evaluate() {
+function evaluate() {
     isFinished = true;
 
-    try {
-        if (!playerTrace || playerTrace.length < 5) {
-            console.log("EVAL: Moc krátký trace hráče", playerTrace);
-            processFinalScore(0, 0, 0, 0);
-            return;
-        }
-
-        // 1. Ochrana proti mikrotahům
-        let minX = Math.min(...playerTrace.map(p => p.x));
-        let maxX = Math.max(...playerTrace.map(p => p.x));
-        let minY = Math.min(...playerTrace.map(p => p.y));
-        let maxY = Math.max(...playerTrace.map(p => p.y));
-        let w = maxX - minX;
-        let h = maxY - minY;
-
-        if (w < 30 || h < 30) {
-            console.log("EVAL: Moc malý rozměr (mikrotah)");
-            processFinalScore(0, 0, 0, 0);
-            return;
-        }
-
-        let size = Math.max(w, h, 50);
-        let centerX = minX + w / 2;
-        let centerY = minY + h / 2;
-
-        // 2. KONTROLA DÉLKY TAHU
-        let playerLength = 0;
-        for (let i = 0; i < playerTrace.length - 1; i++) {
-            playerLength += Math.hypot(playerTrace[i+1].x - playerTrace[i].x, playerTrace[i+1].y - playerTrace[i].y);
-        }
-
-        let targetLength = 0;
-        if (typeof targetShape !== 'undefined' && targetShape && targetShape.length > 1) {
-            for (let i = 0; i < targetShape.length - 1; i++) {
-                targetLength += Math.hypot(targetShape[i+1].x - targetShape[i].x, targetShape[i+1].y - targetShape[i].y);
-            }
-        }
-
-        let scaleFactor = size / 80; 
-        let expectedPlayerLength = targetLength * scaleFactor;
-        let lengthRatio = playerLength / (expectedPlayerLength || 1);
-
-        if (lengthRatio > 3.0) {
-            console.log("EVAL: Překročen limit délky (čmáranice)", lengthRatio);
-            processFinalScore(0, size, centerX, centerY);
-            return;
-        }
-
-        // 3. RASTERIZACE A PIXEL MATCHING
-        const GRID = 50;
-        const c1 = document.createElement('canvas');
-        const c2 = document.createElement('canvas');
-        c1.width = c2.width = GRID;
-        c1.height = c2.height = GRID;
-
-        const ctx1 = c1.getContext('2d');
-        const ctx2 = c2.getContext('2d');
-
-        ctx1.lineWidth = ctx2.lineWidth = 3;
-        ctx1.strokeStyle = ctx2.strokeStyle = '#fff';
-        ctx1.lineCap = ctx2.lineCap = 'round';
-        ctx1.lineJoin = ctx2.lineJoin = 'round';
-
-        // A) Vykreslení hráče
-        const normPlayer = playerTrace.map(p => ({
-            x: ((p.x - centerX) / size) * (GRID - 12) + GRID / 2,
-            y: ((p.y - centerY) / size) * (GRID - 12) + GRID / 2
-        }));
-
-        ctx1.beginPath();
-        normPlayer.forEach((p, i) => {
-            if (i === 0) ctx1.moveTo(p.x, p.y);
-            else ctx1.lineTo(p.x, p.y);
-        });
-        ctx1.stroke();
-
-        // B) Vykreslení vzoru
-        if (typeof targetShape !== 'undefined' && targetShape) {
-            ctx2.beginPath();
-            targetShape.forEach((p, i) => {
-                let px = ((p.x - 50) / 80) * (GRID - 12) + GRID / 2;
-                let py = ((p.y - 50) / 80) * (GRID - 12) + GRID / 2;
-                if (i === 0) ctx2.moveTo(px, py);
-                else ctx2.lineTo(px, py);
-            });
-            ctx2.stroke();
-        }
-
-        // 4. VYHODNOCENÍ CHYB
-        const img1 = ctx1.getImageData(0, 0, GRID, GRID).data;
-        const img2 = ctx2.getImageData(0, 0, GRID, GRID).data;
-
-        let targetPixels = 0;
-        let hitPixels = 0;
-        let extraPixels = 0;
-
-        for (let i = 3; i < img1.length; i += 4) {
-            let p1 = img1[i] > 50; 
-            let p2 = img2[i] > 50; 
-
-            if (p2) targetPixels++;
-            if (p1 && p2) hitPixels++;
-            if (p1 && !p2) extraPixels++;
-        }
-
-        if (targetPixels === 0) {
-            console.log("EVAL: targetPixels je 0 (ve vzoru se nic nevykreslilo)");
-            processFinalScore(0, size, centerX, centerY);
-            return;
-        }
-
-        let recall = hitPixels / targetPixels;
-        let extraPenalty = (extraPixels / targetPixels) * 0.3; 
-
-        let rawScore = recall - extraPenalty;
-
-        if (lengthRatio > 1.4) {
-            rawScore -= (lengthRatio - 1.4) * 0.3;
-        }
-
-        let finalRatio = Math.max(0, rawScore);
-        let score = Math.round(Math.pow(finalRatio, 1.1) * 100);
-
-        console.log("EVAL: Výsledné skóre spočítáno:", score);
-        processFinalScore(score, size, centerX, centerY);
-
-    } catch (err) {
-        console.error("EVAL CHYBA (PÁD FUNKCE):", err);
+    if (!playerTrace || playerTrace.length < 2) {
+        processFinalScore(0, 0, 0, 0);
+        return;
     }
+
+    // --- VAŠE PŮVODNÍ URČENÍ ROZMĚRŮ ---
+    let minX = Math.min(...playerTrace.map(p => p.x));
+    let maxX = Math.max(...playerTrace.map(p => p.x));
+    let minY = Math.min(...playerTrace.map(p => p.y));
+    let maxY = Math.max(...playerTrace.map(p => p.y));
+    let w = maxX - minX;
+    let h = maxY - minY;
+
+    let size = Math.max(w, h, 50);
+    let centerX = minX + w / 2;
+    let centerY = minY + h / 2;
+
+    // --- 1. DOPLNĚNÁ KONTROLA DÉLKY (Zabiják čmáranic) ---
+    let playerLength = 0;
+    for (let i = 0; i < playerTrace.length - 1; i++) {
+        playerLength += Math.hypot(playerTrace[i+1].x - playerTrace[i].x, playerTrace[i+1].y - playerTrace[i].y);
+    }
+
+    let targetLength = 0;
+    for (let i = 0; i < targetShape.length - 1; i++) {
+        targetLength += Math.hypot(targetShape[i+1].x - targetShape[i].x, targetShape[i+1].y - targetShape[i].y);
+    }
+
+    // Přepočet délky vzhledem k velikosti nakresleného objektu
+    let expectedLength = targetLength * (size / 80); 
+    let lengthRatio = playerLength / (expectedLength || 1);
+
+    // Pokud je nakreslená čára 2.5x delší než vzor (úplná čmáranice), okamžitě 0 %
+    if (lengthRatio > 2.5) {
+        processFinalScore(0, size, centerX, centerY);
+        return;
+    }
+
+
+    // --- 2. VAŠE PŮVODNÍ LOGIKA VYHODNOCENÍ BODOŮ (Upravená o penalizaci) ---
+    // (Zde je vaše původní porovnávání vzdáleností bodů, které vám fungovalo)
+    let totalError = 0;
+    let sampledPoints = 0;
+
+    // Procházíme body vzoru a hledáme k nim nejbližší bod od hráče
+    targetShape.forEach(tp => {
+        let tx = ((tp.x - 50) / 80) * size + centerX;
+        let ty = ((tp.y - 50) / 80) * size + centerY;
+
+        let minDist = Infinity;
+        playerTrace.forEach(pp => {
+            let d = Math.hypot(pp.x - tx, pp.y - ty);
+            if (d < minDist) minDist = d;
+        });
+
+        totalError += minDist;
+        sampledPoints++;
+    });
+
+    let avgError = totalError / (sampledPoints || 1);
+    
+    // Základní procento z chyby vzdálenosti
+    let baseScore = Math.max(0, 100 - (avgError / size) * 200);
+
+    // PENALIZACE: Pokud je čára delší než má být (např. kruh okolo kosočtverce), strhneme %
+    if (lengthRatio > 1.2) {
+        baseScore -= (lengthRatio - 1.2) * 60;
+    }
+
+    let finalScore = Math.max(0, Math.round(baseScore));
+
+    processFinalScore(finalScore, size, centerX, centerY);
 }
     function drawGhost(size, centerX, centerY) {
         ctx.setLineDash([8, 8]); ctx.strokeStyle = 'rgba(255, 0, 255, 0.4)'; ctx.lineWidth = 2;
