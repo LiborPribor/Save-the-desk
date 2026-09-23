@@ -551,14 +551,22 @@
 
   function evaluate() {
     isFinished = true;
-    
-    // 1. Ochrana proti mikrotahům
-    let minX = Math.min(...playerTrace.map(p => p.x)), maxX = Math.max(...playerTrace.map(p => p.x));
-    let minY = Math.min(...playerTrace.map(p => p.y)), maxY = Math.max(...playerTrace.map(p => p.y));
-    let w = maxX - minX, h = maxY - minY;
 
-    if (w < 30 || h < 30 || playerTrace.length < 5) {
-        processFinalScore(0, 0, 0);
+    if (!playerTrace || playerTrace.length < 5) {
+        processFinalScore(0, 0, 0, 0);
+        return;
+    }
+
+    // 1. Ochrana proti mikrotahům
+    let minX = Math.min(...playerTrace.map(p => p.x));
+    let maxX = Math.max(...playerTrace.map(p => p.x));
+    let minY = Math.min(...playerTrace.map(p => p.y));
+    let maxY = Math.max(...playerTrace.map(p => p.y));
+    let w = maxX - minX;
+    let h = maxY - minY;
+
+    if (w < 30 || h < 30) {
+        processFinalScore(0, 0, 0, 0);
         return;
     }
 
@@ -566,46 +574,47 @@
     let centerX = minX + w / 2;
     let centerY = minY + h / 2;
 
-    // 2. KONTROLA DÉLKY TAHU (Odhalí čmáranice)
+    // 2. KONTROLA DÉLKY TAHU
     let playerLength = 0;
     for (let i = 0; i < playerTrace.length - 1; i++) {
         playerLength += Math.hypot(playerTrace[i+1].x - playerTrace[i].x, playerTrace[i+1].y - playerTrace[i].y);
     }
-    // Délka v normalizovaném měřítku
-    let normPlayerLength = (playerLength / size) * 100;
 
     let targetLength = 0;
     for (let i = 0; i < targetShape.length - 1; i++) {
         targetLength += Math.hypot(targetShape[i+1].x - targetShape[i].x, targetShape[i+1].y - targetShape[i].y);
     }
 
-    // Pokud je tah více než 2.2x delší než vzor, je to čmáranice
-    let lengthRatio = normPlayerLength / targetLength;
-    if (lengthRatio > 2.2) {
+    // Normalizace délky vzoru na reálnou velikost nakresleného objektu
+    let scaleFactor = size / 80; // Podle drawGhost používáte rozsah 80 jednotek
+    let expectedPlayerLength = targetLength * scaleFactor;
+    let lengthRatio = playerLength / (expectedPlayerLength || 1);
+
+    if (lengthRatio > 3.0) { // Zvýšený limit pro čmáranice
         processFinalScore(0, size, centerX, centerY);
         return;
     }
 
-    // 3. RASTERIZACE A PIXEL MATCHING (Vyšší rozlišení 50x50 pro přesnost)
+    // 3. RASTERIZACE A PIXEL MATCHING
     const GRID = 50;
     const c1 = document.createElement('canvas');
     const c2 = document.createElement('canvas');
     c1.width = c2.width = GRID;
     c1.height = c2.height = GRID;
-    
+
     const ctx1 = c1.getContext('2d');
     const ctx2 = c2.getContext('2d');
 
-    // Tloušťka čáry v mřížce (2px pro jemné detaily)
-    ctx1.lineWidth = ctx2.lineWidth = 2;
+    // Mírně silnější čára na mřížce 50x50 zabrání přísnému míjení o 1px
+    ctx1.lineWidth = ctx2.lineWidth = 3;
     ctx1.strokeStyle = ctx2.strokeStyle = '#fff';
     ctx1.lineCap = ctx2.lineCap = 'round';
     ctx1.lineJoin = ctx2.lineJoin = 'round';
 
     // A) Vykreslení hráče
-    const normPlayer = playerTrace.map(p => ({ 
-        x: ((p.x - centerX) / size) * (GRID - 10) + GRID / 2, 
-        y: ((p.y - centerY) / size) * (GRID - 10) + GRID / 2 
+    const normPlayer = playerTrace.map(p => ({
+        x: ((p.x - centerX) / size) * (GRID - 12) + GRID / 2,
+        y: ((p.y - centerY) / size) * (GRID - 12) + GRID / 2
     }));
 
     ctx1.beginPath();
@@ -615,11 +624,11 @@
     });
     ctx1.stroke();
 
-    // B) Vykreslení vzoru
+    // B) Vykreslení vzoru (Sjednoceno s normováním podle drawGhost: střed v 50, rozsah 80)
     ctx2.beginPath();
     targetShape.forEach((p, i) => {
-        let px = (p.x / 100) * (GRID - 10) + 5;
-        let py = (p.y / 100) * (GRID - 10) + 5;
+        let px = ((p.x - 50) / 80) * (GRID - 12) + GRID / 2;
+        let py = ((p.y - 50) / 80) * (GRID - 12) + GRID / 2;
         if (i === 0) ctx2.moveTo(px, py);
         else ctx2.lineTo(px, py);
     });
@@ -639,7 +648,7 @@
 
         if (p2) targetPixels++;
         if (p1 && p2) hitPixels++;
-        if (p1 && !p2) extraPixels++; // Čáry mimo vzor!
+        if (p1 && !p2) extraPixels++;
     }
 
     if (targetPixels === 0) {
@@ -647,23 +656,17 @@
         return;
     }
 
-    // Pokrytí vzoru (0.0 až 1.0)
-    let recall = hitPixels / targetPixels; 
+    let recall = hitPixels / targetPixels;
+    let extraPenalty = (extraPixels / targetPixels) * 0.3; // Mírnější penalizace
 
-    // Míra balastu / extra čar mimo vzor (penalizace)
-    let extraPenalty = extraPixels / targetPixels; 
+    let rawScore = recall - extraPenalty;
 
-    // Čisté skóre: Pokrytí MÍNUS penalizace za čmárání okolo
-    let rawScore = recall - (extraPenalty * 0.8);
-
-    // Pokud je delší než má být, ještě přisadíme penalizaci za délku
-    if (lengthRatio > 1.3) {
-        rawScore -= (lengthRatio - 1.3) * 0.5;
+    if (lengthRatio > 1.4) {
+        rawScore -= (lengthRatio - 1.4) * 0.3;
     }
 
-    // Přepočet na finální %
     let finalRatio = Math.max(0, rawScore);
-    let score = Math.round(Math.pow(finalRatio, 1.2) * 100);
+    let score = Math.round(Math.pow(finalRatio, 1.1) * 100);
 
     processFinalScore(score, size, centerX, centerY);
 }
