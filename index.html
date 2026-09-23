@@ -552,12 +552,12 @@
   function evaluate() {
     isFinished = true;
     
-    // 1. Základní kontrola rozměrů (ochrana proti tečkám a mikrotahům)
+    // 1. Ochrana proti mikrotahům
     let minX = Math.min(...playerTrace.map(p => p.x)), maxX = Math.max(...playerTrace.map(p => p.x));
     let minY = Math.min(...playerTrace.map(p => p.y)), maxY = Math.max(...playerTrace.map(p => p.y));
     let w = maxX - minX, h = maxY - minY;
 
-    if (w < 30 || h < 30) {
+    if (w < 30 || h < 30 || playerTrace.length < 5) {
         processFinalScore(0, 0, 0);
         return;
     }
@@ -566,26 +566,46 @@
     let centerX = minX + w / 2;
     let centerY = minY + h / 2;
 
-    // 2. Vytvoření dvou skrytých pomocných pláten (32x32 px) pro porovnání pixelů
-    const GRID_SIZE = 32;
+    // 2. KONTROLA DÉLKY TAHU (Odhalí čmáranice)
+    let playerLength = 0;
+    for (let i = 0; i < playerTrace.length - 1; i++) {
+        playerLength += Math.hypot(playerTrace[i+1].x - playerTrace[i].x, playerTrace[i+1].y - playerTrace[i].y);
+    }
+    // Délka v normalizovaném měřítku
+    let normPlayerLength = (playerLength / size) * 100;
+
+    let targetLength = 0;
+    for (let i = 0; i < targetShape.length - 1; i++) {
+        targetLength += Math.hypot(targetShape[i+1].x - targetShape[i].x, targetShape[i+1].y - targetShape[i].y);
+    }
+
+    // Pokud je tah více než 2.2x delší než vzor, je to čmáranice
+    let lengthRatio = normPlayerLength / targetLength;
+    if (lengthRatio > 2.2) {
+        processFinalScore(0, size, centerX, centerY);
+        return;
+    }
+
+    // 3. RASTERIZACE A PIXEL MATCHING (Vyšší rozlišení 50x50 pro přesnost)
+    const GRID = 50;
     const c1 = document.createElement('canvas');
     const c2 = document.createElement('canvas');
-    c1.width = c2.width = GRID_SIZE;
-    c1.height = c2.height = GRID_SIZE;
+    c1.width = c2.width = GRID;
+    c1.height = c2.height = GRID;
     
     const ctx1 = c1.getContext('2d');
     const ctx2 = c2.getContext('2d');
 
-    // Nastavení parametrů čáry pro mřížku
-    ctx1.lineWidth = ctx2.lineWidth = 3;
+    // Tloušťka čáry v mřížce (2px pro jemné detaily)
+    ctx1.lineWidth = ctx2.lineWidth = 2;
     ctx1.strokeStyle = ctx2.strokeStyle = '#fff';
     ctx1.lineCap = ctx2.lineCap = 'round';
     ctx1.lineJoin = ctx2.lineJoin = 'round';
 
-    // A) Vykreslení hráčova tahu do mřížky 1
+    // A) Vykreslení hráče
     const normPlayer = playerTrace.map(p => ({ 
-        x: ((p.x - centerX) / size) * (GRID_SIZE - 8) + GRID_SIZE / 2, 
-        y: ((p.y - centerY) / size) * (GRID_SIZE - 8) + GRID_SIZE / 2 
+        x: ((p.x - centerX) / size) * (GRID - 10) + GRID / 2, 
+        y: ((p.y - centerY) / size) * (GRID - 10) + GRID / 2 
     }));
 
     ctx1.beginPath();
@@ -595,67 +615,57 @@
     });
     ctx1.stroke();
 
-    // B) Vykreslení vzoru do mřížky 2
+    // B) Vykreslení vzoru
     ctx2.beginPath();
     targetShape.forEach((p, i) => {
-        let px = (p.x / 100) * (GRID_SIZE - 8) + 4;
-        let py = (p.y / 100) * (GRID_SIZE - 8) + 4;
+        let px = (p.x / 100) * (GRID - 10) + 5;
+        let py = (p.y / 100) * (GRID - 10) + 5;
         if (i === 0) ctx2.moveTo(px, py);
         else ctx2.lineTo(px, py);
     });
     ctx2.stroke();
 
-    // 3. Porovnání pixelů metodou IoU (Intersection over Union)
-    const img1 = ctx1.getImageData(0, 0, GRID_SIZE, GRID_SIZE).data;
-    const img2 = ctx2.getImageData(0, 0, GRID_SIZE, GRID_SIZE).data;
+    // 4. VYHODNOCENÍ CHYB
+    const img1 = ctx1.getImageData(0, 0, GRID, GRID).data;
+    const img2 = ctx2.getImageData(0, 0, GRID, GRID).data;
 
-    let intersection = 0;
-    let union = 0;
+    let targetPixels = 0;
+    let hitPixels = 0;
+    let extraPixels = 0;
 
     for (let i = 3; i < img1.length; i += 4) {
-        let p1 = img1[i] > 50; // Pixel hráče
-        let p2 = img2[i] > 50; // Pixel vzoru
+        let p1 = img1[i] > 50; // Hráč
+        let p2 = img2[i] > 50; // Vzor
 
-        if (p1 && p2) intersection++;
-        if (p1 || p2) union++;
+        if (p2) targetPixels++;
+        if (p1 && p2) hitPixels++;
+        if (p1 && !p2) extraPixels++; // Čáry mimo vzor!
     }
 
-    // Výpočet přesného překryvu
-    let matchRatio = union > 0 ? (intersection / union) : 0;
-    
-    // Přepočet na % (mocnina 0.8 dává fajn dynamiku: přesný tvar má 80-95%, nesmysl spadne pod 20%)
-    let score = Math.round(Math.pow(matchRatio, 0.8) * 100);
+    if (targetPixels === 0) {
+        processFinalScore(0, size, centerX, centerY);
+        return;
+    }
+
+    // Pokrytí vzoru (0.0 až 1.0)
+    let recall = hitPixels / targetPixels; 
+
+    // Míra balastu / extra čar mimo vzor (penalizace)
+    let extraPenalty = extraPixels / targetPixels; 
+
+    // Čisté skóre: Pokrytí MÍNUS penalizace za čmárání okolo
+    let rawScore = recall - (extraPenalty * 0.8);
+
+    // Pokud je delší než má být, ještě přisadíme penalizaci za délku
+    if (lengthRatio > 1.3) {
+        rawScore -= (lengthRatio - 1.3) * 0.5;
+    }
+
+    // Přepočet na finální %
+    let finalRatio = Math.max(0, rawScore);
+    let score = Math.round(Math.pow(finalRatio, 1.2) * 100);
 
     processFinalScore(score, size, centerX, centerY);
-}
-
-function processFinalScore(score, size, centerX, centerY) {
-    if (score >= bestScore) {
-        const photo = canvas.toDataURL("image/webp", 0.3);
-        db.ref(`users/${userId}`).update({ bestScore: score, bestPhoto: photo });
-    }
-    
-    showScore(score);
-
-    // Prověření pozvánek / denního bonusu
-    db.ref(`users/${userId}`).once('value', snap => {
-        const me = snap.val() || {};
-        const inviter = me.invitedBy || (referrer && referrer !== userId ? referrer : null);
-        if (inviter) {
-            const today = getTodayStr();
-            const bonusPath = `users/${inviter}/dailyBonuses/${userId}`;
-            db.ref(bonusPath).once('value', bSnap => {
-                if (bSnap.val() !== today) {
-                    db.ref(`users/${inviter}/moves`).transaction(m => (m || 0) + 1);
-                    db.ref(bonusPath).set(today);
-                }
-            });
-        }
-    });
-
-    if (size) {
-        drawGhost(size, centerX, centerY);
-    }
 }
 
     function drawGhost(size, centerX, centerY) {
