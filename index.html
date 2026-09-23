@@ -78,21 +78,6 @@
         .moves-count { color: #00ffff !important; }
         .global-count { color: #ffffff !important; }
 
-        /* Nová lišta s odpočtem */
-        #cycle-bar {
-            margin-top: 8px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 6px 15px;
-            font-size: 11px;
-        }
-        #cycle-timer {
-            color: #00ffff;
-            font-weight: bold;
-            font-family: monospace;
-        }
-
         #side-menu { 
             position: absolute; top: 0; left: -100%; width: 85%; height: 100%; 
             background: #0a0a0a; z-index: 100; transition: 0.3s; 
@@ -122,7 +107,7 @@
 
         #reference-box { 
             position: absolute; 
-            top: 210px; 
+            top: 170px; 
             right: 20px; 
             width: 70px; 
             height: 70px; 
@@ -199,13 +184,6 @@
             <div class="stat-item"><span class="stat-label" id="label-global">Svět</span><span id="global-display" class="stat-value global-count">0</span></div>
         </div>
     </div>
-
-    <!-- Lišta odpočtu -->
-    <div id="cycle-bar" class="glass-panel">
-        <span style="color:#888;" id="label-cycle">NOVÝ TVAR A RESET ZA</span>
-        <span id="cycle-timer">--d --h --m --s</span>
-    </div>
-
     <div id="result-container" class="glass-panel">
         <div id="score-display">0%</div>
         <div style="display:flex; gap:10px; justify-content:center;">
@@ -232,104 +210,13 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
     
-    // --- SPRÁVA 10DENNÍCH CYKLŮ A NAFRÉMOVANÝCH TVARŮ ---
-    const CYCLE_DAYS = 10;
-    const START_EPOCH = new Date("2026-09-21T00:00:00Z").getTime(); // Počáteční datum první výzvy
-
-    // Seznam 30 připravených tvarů (všechny v mřížce 0..100).
-    // Tvar č. 0 je tvůj původní uzlík. Můžeš zde ručně měnit souřadnice a upravit jakýkoliv tvar!
-    const SHAPES = [
-        /* 0 - Původní uzel */ [{x:50,y:10},{x:85,y:40},{x:50,y:55},{x:15,y:70},{x:50,y:95},{x:85,y:70},{x:50,y:55},{x:15,y:40},{x:50,y:10}],
-        /* 1 - Hvězdička */    [{x:50,y:10},{x:62,y:38},{x:90,y:38},{x:68,y:55},{x:76,y:85},{x:50,y:68},{x:24,y:85},{x:32,y:55},{x:10,y:38},{x:38,y:38},{x:50,y:10}],
-        /* 2 - Srdce */       [{x:50,y:85},{x:20,y:55},{x:15,y:35},{x:25,y:15},{x:40,y:15},{x:50,y:30},{x:60,y:15},{x:75,y:15},{x:85,y:35},{x:80,y:55},{x:50,y:85}],
-        /* 3 - Kapka */       [{x:50,y:10},{x:80,y:50},{x:80,y:75},{x:50,y:90},{x:20,y:75},{x:20,y:50},{x:50,y:10}],
-        /* 4 - Osmice */      [{x:50,y:50},{x:75,y:25},{x:50,y:10},{x:25,y:25},{x:50,y:50},{x:75,y:75},{x:50,y:90},{x:25,y:75},{x:50,y:50}],
-        /* 5 - Ryba */        [{x:15,y:50},{x:65,y:15},{x:85,y:15},{x:65,y:50},{x:85,y:85},{x:65,y:85},{x:15,y:50}],
-        /* 6 - Přýsypka */     [{x:20,y:20},{x:80,y:20},{x:20,y:80},{x:80,y:80},{x:20,y:20}],
-        /* 7 - Diamant */     [{x:50,y:10},{x:85,y:35},{x:50,y:90},{x:15,y:35},{x:50,y:10}],
-        /* 8 - Koruna */      [{x:15,y:80},{x:15,y:30},{x:35,y:55},{x:50,y:20},{x:65,y:55},{x:85,y:30},{x:85,y:80},{x:15,y:80}],
-        /* 9 - Bumerang */    [{x:20,y:80},{x:50,y:20},{x:80,y:80},{x:50,y:50},{x:20,y:80}],
-        /* 10 - Trojúhelník */[{x:50,y:15},{x:85,y:85},{x:15,y:85},{x:50,y:15}],
-        /* 11 - Dvojitý čtverec */ [{x:20,y:20},{x:80,y:20},{x:80,y:80},{x:20,y:80},{x:20,y:20},{x:40,y:40},{x:60,y:40},{x:60,y:60},{x:40,y:60},{x:40,y:40}],
-        /* 12 - Motýlek */    [{x:20,y:20},{x:20,y:80},{x:80,y:20},{x:80,y:80},{x:20,y:20}],
-        /* 13 - Šipka */      [{x:50,y:10},{x:80,y:40},{x:65,y:40},{x:65,y:90},{x:35,y:90},{x:35,y:40},{x:20,y:40},{x:50,y:10}],
-        /* 14 - Domeček */    [{x:50,y:15},{x:85,y:45},{x:85,y:85},{x:15,y:85},{x:15,y:45},{x:50,y:15}],
-        /* 15 - Blesk */      [{x:55,y:10},{x:25,y:50},{x:50,y:50},{x:45,y:90},{x:75,y:50},{x:50,y:50},{x:55,y:10}],
-        /* 16 - Pes */        [{x:20,y:70},{x:20,y:40},{x:35,y:25},{x:50,y:40},{x:65,y:40},{x:80,y:25},{x:80,y:70},{x:65,y:70},{x:65,y:55},{x:35,y:55},{x:35,y:70},{x:20,y:70}],
-        /* 17 - Spirálka */   [{x:50,y:50},{x:50,y:35},{x:65,y:35},{x:65,y:65},{x:35,y:65},{x:35,y:20},{x:80,y:20},{x:80,y:80},{x:20,y:80}],
-        /* 18 - Květ */       [{x:50,y:30},{x:70,y:15},{x:85,y:35},{x:70,y:50},{x:85,y:65},{x:70,y:85},{x:50,y:70},{x:30,y:85},{x:15,y:65},{x:30,y:50},{x:15,y:35},{x:30,y:15},{x:50,y:30}],
-        /* 19 - Přesýpací */  [{x:20,y:15},{x:80,y:15},{x:50,y:50},{x:80,y:85},{x:20,y:85},{x:50,y:50},{x:20,y:15}],
-        /* 20 - Klíč */       [{x:35,y:30},{x:50,y:15},{x:65,y:30},{x:50,y:45},{x:35,y:30},{x:50,y:45},{x:50,y:85},{x:65,y:85},{x:50,y:85},{x:50,y:70},{x:65,y:70}],
-        /* 21 - Mašle */      [{x:15,y:30},{x:50,y:50},{x:85,y:30},{x:85,y:70},{x:50,y:50},{x:15,y:70},{x:15,y:30}],
-        /* 22 - Zvon */       [{x:50,y:15},{x:70,y:35},{x:70,y:70},{x:80,y:75},{x:20,y:75},{x:30,y:70},{x:30,y:35},{x:50,y:15}],
-        /* 23 - Hradba */     [{x:15,y:85},{x:15,y:25},{x:35,y:25},{x:35,y:45},{x:50,y:45},{x:50,y:25},{x:65,y:25},{x:65,y:45},{x:85,y:45},{x:85,y:85},{x:15,y:85}],
-        /* 24 - Štít */       [{x:20,y:20},{x:80,y:20},{x:80,y:55},{x:50,y:85},{x:20,y:55},{x:20,y:20}],
-        /* 25 - Nůžky */      [{x:25,y:25},{x:75,y:75},{x:85,y:60},{x:75,y:75},{x:25,y:25},{x:25,y:75},{x:75,y:25}],
-        /* 26 - Trojlístek */ [{x:50,y:50},{x:30,y:20},{x:50,y:10},{x:70,y:20},{x:50,y:50},{x:80,y:40},{x:90,y:60},{x:70,y:75},{x:50,y:50},{x:30,y:75},{x:10,y:60},{x:20,y:40},{x:50,y:50}],
-        /* 27 - Kříž */       [{x:40,y:15},{x:60,y:15},{x:60,y:40},{x:85,y:40},{x:85,y:60},{x:60,y:60},{x:60,y:85},{x:40,y:85},{x:40,y:60},{x:15,y:60},{x:15,y:40},{x:40,y:40},{x:40,y:15}],
-        /* 28 - Dračí zub */  [{x:20,y:80},{x:35,y:20},{x:50,y:60},{x:65,y:20},{x:80,y:80},{x:20,y:80}],
-        /* 29 - Měsíc */      [{x:50,y:15},{x:75,y:35},{x:75,y:65},{x:50,y:85},{x:60,y:65},{x:60,y:35},{x:50,y:15}]
-    ];
-
-    function getCurrentCycleIndex() {
-        const now = Date.now();
-        const diff = Math.max(0, now - START_EPOCH);
-        return Math.floor(diff / (1000 * 60 * 60 * 24 * CYCLE_DAYS));
-    }
-
-    function getNextCycleTime() {
-        const currentCycle = getCurrentCycleIndex();
-        return START_EPOCH + (currentCycle + 1) * (1000 * 60 * 60 * 24 * CYCLE_DAYS);
-    }
-
-    let currentCycleIndex = getCurrentCycleIndex();
-    let targetShape = SHAPES[currentCycleIndex % SHAPES.length];
-
-    function updateTimer() {
-        const now = Date.now();
-        const diff = getNextCycleTime() - now;
-
-        if (diff <= 0) {
-            // Přechod na nový cyklus!
-            currentCycleIndex = getCurrentCycleIndex();
-            targetShape = SHAPES[currentCycleIndex % SHAPES.length];
-            checkCycleResetForUser();
-            drawRef();
-            return;
-        }
-
-        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-        const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-        const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-        const secs = Math.floor((diff % (1000 * 60)) / 1000);
-
-        document.getElementById('cycle-timer').innerText = `${days}d ${hours}h ${mins}m ${secs}s`;
-    }
-    setInterval(updateTimer, 1000);
-
-    function checkCycleResetForUser() {
-        if (!userId) return;
-        db.ref(`users/${userId}`).once('value', snap => {
-            const data = snap.val();
-            if (data && data.lastCycleIndex !== currentCycleIndex) {
-                // Vynulujeme skóre a fotku pro nový tvar, ale ostatní věci necháme!
-                db.ref(`users/${userId}`).update({
-                    bestScore: 0,
-                    bestPhoto: null,
-                    lastCycleIndex: currentCycleIndex
-                });
-            }
-        });
-    }
-
-    // --- PŮVODNÍ KÓD HRY ---
     let currentLang = localStorage.getItem('neon_lang') || 'cz';
     const texts = {
         cz: {
             tutH1: "CO MÁŠ DĚLAT?", tutT1: "Obkresli vzor (vpravo nahoře) jedním souvislým tahem.",
             tutH2: "JAK ZÍSKAT TAHY NAVÍC?", tutT2: "Klikni na 'Pozvat kámoše'. Tah se přičte až kamarád odehraje..",
             start: "START HRY", invite: "POZVAT KÁMOŠE (+1 TAH)", top10: "TOP 10 ŽEBŘÍČEK",
-            labelMoves: "Tahy", labelBest: "Best", labelStreak: "Řada", labelGlobal: "Svět", labelCycle: "NOVÝ TVAR A RESET ZA", again: "Znovu", share: "Sdílet",
+            labelMoves: "Tahy", labelBest: "Best", labelStreak: "Řada", labelGlobal: "Svět", again: "Znovu", share: "Sdílet",
             nickPlaceholder: "Tvá přezdívka...", infoTitle: "Instrukce", 
             infoBody: "<b>CO DĚLAT?</b><br>Obkresli vzor jedním tahem.<br><br><b>REKORDY:</b><br>Kliknutím na řádek v žebříčku zobrazíš fotku pokusu.<br><br><b>BONUSY:</b><br>Sdílej svůj link. Tah se přičte až kamarád odehraje..",
             alertNoMoves: "Dnes už jsi vyčerpal tahy. Přijď po půlnoci!", shareMsg: "Koukni na můj pokus!"
@@ -338,7 +225,7 @@
             tutH1: "HOW TO PLAY?", tutT1: "Trace the pattern (top right) in one continuous stroke.",
             tutH2: "GET EXTRA MOVES?", tutT2: "Click 'Invite Friends'. Move added after your friend plays..",
             start: "START GAME", invite: "INVITE FRIENDS (+1 MOVE)", top10: "TOP 10 RANKING",
-            labelMoves: "Moves", labelBest: "Best", labelStreak: "Streak", labelGlobal: "World", labelCycle: "NEW SHAPE & RESET IN", again: "Again", share: "Share",
+            labelMoves: "Moves", labelBest: "Best", labelStreak: "Streak", labelGlobal: "World", again: "Again", share: "Share",
             nickPlaceholder: "Your nickname...", infoTitle: "Instructions",
             infoBody: "<b>HOW TO PLAY?</b><br>Trace the pattern in one go.<br><br><b>RECORDS:</b><br>Click any row in the ranking to see the attempt photo.<br><br><b>BONUSES:</b><br>Share your link. Moves added after friends play..",
             alertNoMoves: "No moves left today. Come back after midnight!", shareMsg: "Check my attempt!"
@@ -389,7 +276,6 @@
         document.getElementById('label-best').innerText = t.labelBest;
         document.getElementById('label-streak').innerText = t.labelStreak;
         document.getElementById('label-global').innerText = t.labelGlobal;
-        document.getElementById('label-cycle').innerText = t.labelCycle;
         document.getElementById('btn-again').innerText = t.again;
         document.getElementById('btn-share').innerText = t.share;
         document.getElementById('player-name-input').placeholder = t.nickPlaceholder;
@@ -405,7 +291,6 @@
             localStorage.setItem('neon_name', userName);
             document.getElementById('login-overlay').style.display = 'none';
         }
-        checkCycleResetForUser();
         initGame();
     });
 
@@ -426,13 +311,11 @@
                         moves: initialMoves, 
                         streak: 0,
                         lastPlayDate: getTodayStr(),
-                        invitedBy: isValidRef ? referrer : null,
-                        lastCycleIndex: currentCycleIndex
+                        invitedBy: isValidRef ? referrer : null
                     });
                 } else {
                     db.ref(`users/${userId}`).update({ name: userName });
                 }
-                checkCycleResetForUser();
                 initGame();
             });
         }
@@ -475,8 +358,6 @@
             });
             document.getElementById('friends-list').innerHTML = html;
         });
-
-        updateTimer();
     }
 
     function checkMidnightReset(lastPlayDate) {
@@ -507,6 +388,7 @@
 
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
+    const targetShape = [{x:50,y:10},{x:85,y:40},{x:50,y:55},{x:15,y:70},{x:50,y:95},{x:85,y:70},{x:50,y:55},{x:15,y:40},{x:50,y:10}];
     let playerTrace = [], isDrawing = false, isFinished = false;
     canvas.width = window.innerWidth; canvas.height = window.innerHeight;
 
@@ -527,46 +409,72 @@
         ctx.beginPath(); ctx.moveTo(last.x, last.y); ctx.lineTo(clientX, clientY); ctx.stroke();
         playerTrace.push({x: clientX, y: clientY});
     }
-function evaluate() {
-    let correctMoves = 0;
-    let totalChecks = 0;
-    let falseConnections = 0;
 
-    // Procházíme celou mřížku a porovnáváme stav hrana po hraně
-    for (let r = 0; r < gridRows; r++) {
-        for (let c = 0; c < gridCols; c++) {
-            const currentTile = grid[r][c];
-            const targetTile = targetGrid[r][c];
-
-            // Porovnáme stav spojení na všech 4 stranách (Top, Right, Bottom, Left)
-            for (let dir = 0; dir < 4; dir++) {
-                const isCurrentConnected = currentTile.connections[dir];
-                const isTargetConnected = targetTile.connections[dir];
-
-                if (isTargetConnected) {
-                    totalChecks++;
-                    if (isCurrentConnected) {
-                        correctMoves++;
-                    }
-                } else if (isCurrentConnected) {
-                    // Penalizace: Hráč vytvořil čáru tam, kde ve vzoru žádná nemá být
-                    falseConnections++;
-                }
+    function handleEnd() {
+        if (isDrawing && playerTrace.length > 15) {
+            if (moves > 0) {
+                moves--;
+                db.ref(`users/${userId}/moves`).set(moves);
             }
+
+            db.ref('global_moves').transaction(v => (v || 0) + 1);
+            evaluate();
         }
+        isDrawing = false;
     }
 
-    if (totalChecks === 0) return 100;
+    canvas.addEventListener('touchstart', e => handleStart(e.touches[0].clientX, e.touches[0].clientY));
+    canvas.addEventListener('touchmove', e => handleMove(e.touches[0].clientX, e.touches[0].clientY));
+    canvas.addEventListener('touchend', handleEnd);
 
-    // Vypočteme přesnost a odečteme penalizaci za nesmyslné čáry navíc
-    const accuracy = (correctMoves / totalChecks) * 100;
-    const penalty = (falseConnections / totalChecks) * 20; // 20% dolů za každou chybnou hranu
-    
-    const finalScore = Math.max(0, Math.round(accuracy - penalty));
+    canvas.addEventListener('mousedown', e => handleStart(e.clientX, e.clientY));
+    canvas.addEventListener('mousemove', e => handleMove(e.clientX, e.clientY));
+    canvas.addEventListener('mouseup', handleEnd);
 
-    return finalScore;
-}
-    function drawGhost(size, centerX, centerY) {
+    function evaluate() {
+        isFinished = true;
+        let minX = Math.min(...playerTrace.map(p=>p.x)), maxX = Math.max(...playerTrace.map(p=>p.x));
+        let minY = Math.min(...playerTrace.map(p=>p.y)), maxY = Math.max(...playerTrace.map(p=>p.y));
+        let size = Math.max(maxX - minX, maxY - minY, 50);
+        let centerX = minX + (maxX - minX) / 2;
+        let centerY = minY + (maxY - minY) / 2;
+        const normPlayer = playerTrace.map(p => ({ x: ((p.x - centerX) / size) * 80 + 50, y: ((p.y - centerY) / size) * 80 + 50 }));
+        let totalErr = 0;
+        normPlayer.forEach(p => {
+            let minDist = Infinity;
+            for(let i=0; i<targetShape.length-1; i++) {
+                let d = distToSegment(p, targetShape[i], targetShape[i+1]);
+                if (d < minDist) minDist = d;
+            }
+            totalErr += minDist;
+        });
+        let score = Math.round(Math.max(0, 100 - ( (totalErr / normPlayer.length) * 12 )));
+        const photo = canvas.toDataURL("image/webp", 0.3);
+        
+        if (score >= bestScore) {
+            db.ref(`users/${userId}`).update({ bestScore: score, bestPhoto: photo });
+        }
+        
+        showScore(score);
+
+        db.ref(`users/${userId}`).once('value', snap => {
+            const me = snap.val() || {};
+            const inviter = me.invitedBy || (referrer && referrer !== userId ? referrer : null);
+            if (inviter) {
+                const today = getTodayStr();
+                const bonusPath = `users/${inviter}/dailyBonuses/${userId}`;
+                db.ref(bonusPath).once('value', bSnap => {
+                    if (bSnap.val() !== today) {
+                        db.ref(`users/${inviter}/moves`).transaction(m => (m || 0) + 1);
+                        db.ref(bonusPath).set(today);
+                    }
+                });
+            }
+        });
+        
+        drawGhost(size, centerX, centerY);
+    }
+
     function drawGhost(size, centerX, centerY) {
         ctx.setLineDash([8, 8]); ctx.strokeStyle = 'rgba(255, 0, 255, 0.4)'; ctx.lineWidth = 2;
         ctx.beginPath();
